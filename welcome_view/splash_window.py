@@ -4,6 +4,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPixmap
 
 class SplashWindow(QWidget):
+
     # Define a custom signal that will be emitted when the user clicks continue.
     continueClicked = Signal()
 

@@ -2,7 +2,9 @@
 import sys
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer
-from chat_view.chat_window import ChatWindow
+
+from auth_view.login_window import LoginWindow
+from auth_view.signup_window import AuthWindow
 from welcome_view.loading_window import LoadingWindow
 from welcome_view.splash_window import SplashWindow
 
@@ -12,7 +14,9 @@ if __name__ == "__main__":
     # Create instances of the windows
     loading_window = LoadingWindow()
     splash_window = SplashWindow()
-    chat_window = ChatWindow()
+    auth_window = AuthWindow()
+
+    login_window = LoginWindow()
 
     # Show the loading window first
     loading_window.show()
@@ -21,6 +25,12 @@ if __name__ == "__main__":
     QTimer.singleShot(3000, lambda: (loading_window.close(), splash_window.show()))
 
     # Connect the splash window's continue signal to hide the splash and show the chat window.
-    splash_window.continueClicked.connect(lambda: (splash_window.close(), chat_window.show()))
+    splash_window.continueClicked.connect(lambda: (splash_window.close(), auth_window.show()))
+
+   #  # Connect the login window's navigate_to_signup signal to show the signup window
+   #  login_window.navigate_to_signup.connect(splash_window.show())
+   #
+   # # Connect the signup window's navigate_to_login signal to show the login window
+   #  auth_window.navigate_to_login.connect(login_window.show())
 
     sys.exit(app.exec())

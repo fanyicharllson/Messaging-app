@@ -14,7 +14,7 @@ class LoadingWindow(QWidget):
         layout = QVBoxLayout(self)
         # Only horizontally center the widgets; vertical alignment will be at the top.
         layout.setAlignment(Qt.AlignHCenter)
-        layout.setContentsMargins(0, 50, 0, 0)  # Top margin to push the content down slightly if needed.
+        layout.setContentsMargins(0, 50, 0, 0)
         layout.setSpacing(20)
 
         # Create and configure the spinner widget with increased size parameters
