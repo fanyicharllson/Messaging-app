@@ -1,7 +1,10 @@
 import sqlite3
+from helpers.log_message import LogMessage
 
 # Path to the SQLite database file
 DB_PATH = "C:/Users/NTECH/OneDrive/Desktop/CREATED DATABASES/message.db"
+
+log_message = LogMessage()
 
 
 def create_connection():
@@ -48,6 +51,22 @@ def validate_user_data(name, phone_number):
     if len(phone_number) < 9:
         return False, "Phone number must be at least 9 digits."
     return True, ""
+
+def fetch_user_id(name, phone_number):
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id FROM users WHERE name = ? OR phone_number = ?", (name, phone_number)
+    )
+    user_id = cursor.fetchone()
+    if user_id:
+        user_id = user_id[0]
+        return user_id
+    else:
+        conn.close()
+        log_message.show_error_message("Error fetching user ID.")
+        return None
+
 
 def login_user(name, phone):
         """

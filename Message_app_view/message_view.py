@@ -1,22 +1,36 @@
 import qtawesome as qta
 from PySide6.QtWidgets import (
     QMainWindow, QLabel, QVBoxLayout, QHBoxLayout, QWidget, QFrame, QLineEdit,
-    QPushButton, QListWidget, QListWidgetItem, QTextEdit, QToolButton, QApplication
+    QPushButton, QListWidget, QListWidgetItem, QTextEdit, QToolButton, QApplication, QInputDialog, QMessageBox
 )
 from PySide6.QtCore import Qt, QSize
+from auth_view import login_window #avoiding circular imports
+from backend_controller import db_handler_friends
+from helpers.log_message import LogMessage
 
 
 class MainWindow(QMainWindow):
     chat_display: QTextEdit
 
-    def __init__(self, name, phone_number):
+    def __init__(self, name, phone_number, user_id):
         super().__init__()
         self.message_input = None
+        self.login_window = None
+        self.message = LogMessage()
         self.setWindowTitle("ChatHub")
         self.setFixedSize(900, 600)
         self.setStyleSheet("background-color: #2c3e50; color: white;")
         self.name = name
         self.phone_number = phone_number
+        self.user_id = user_id
+
+        #invoke notifications
+        db_handler_friends.check_friend_requests(self.user_id)
+
+        notifications = db_handler_friends.fetch_notifications(self.user_id)
+        if notifications:
+            self.message.show_success_message(
+                f"Hey {self.name}! You have {len(notifications)} new notifications. Click the bell icon to view them.")
 
 
         # Apply tooltip style globally
@@ -56,15 +70,16 @@ class MainWindow(QMainWindow):
         # Left section for icons
         icon_layout = QVBoxLayout()
         icons = [
-            ("fa.circle", "Status"),
-            ("fa.user", "Profile"),
-            ("fa.group", "Create Group"),
-            ("fa.plus-circle", "Add Friend"),
-            ("fa.minus-circle", "Remove Friend"),
-            ("fa.sign-out", "Logout"),
-            ("fa.cog", "Settings"),
+            ("fa.bell", "Notification", self.handle_notification_click),
+            ("fa.circle", "Status", self.handle_status_click),
+            ("fa.user", "Profile", self.handle_profile_click),
+            ("fa.group", "Create Group", self.handle_create_group_click),
+            ("fa.plus-circle", "Add Friend", self.handle_add_friend_click),
+            ("fa.minus-circle", "Remove Friend", self.handle_remove_friend_click),
+            ("fa.cog", "Settings", self.handle_settings_click),
+            ("fa.sign-out", "Logout", self.handle_logout_click),
         ]
-        for icon_name, tooltip in icons:
+        for icon_name, tooltip, handler in icons:
             btn = QToolButton()
             btn.setIcon(qta.icon(icon_name, color="#1abc9c"))
             btn.setIconSize(QSize(30, 30))
@@ -84,6 +99,7 @@ class MainWindow(QMainWindow):
                 }
                 """
             )
+            btn.clicked.connect(handler)
             icon_layout.addWidget(btn, alignment=Qt.AlignHCenter)
 
         # Left section container for icons
@@ -123,10 +139,17 @@ class MainWindow(QMainWindow):
         )
 
         # Add some dummy friends
-        friends = ["Alice", "Bob", "Charlie", "David", "Eve"]
+        friends = db_handler_friends.load_friends(self.user_id)
+        print(f"friends are: {friends}")
+        print(f"id is: {self.user_id}")
         for friend in friends:
-            item = QListWidgetItem(friend)
+            item = QListWidgetItem(friend[0])
             friend_list.addItem(item)
+
+        if not friends:
+            no_friends_item = QListWidgetItem("No friends found. \nClick '+' to add friends.")
+            no_friends_item.setFlags(no_friends_item.flags() & ~Qt.ItemIsSelectable)
+            friend_list.addItem(no_friends_item)
 
         friend_list.itemClicked.connect(self.open_chat_with_friend)
 
@@ -224,8 +247,66 @@ class MainWindow(QMainWindow):
         chat_area_container.setLayout(chat_area)
         return chat_area_container
 
+    def handle_status_click(self):
+        self.chat_display.append("Status button clicked!")
+        # Add specific logic for Status here
+
+    def handle_profile_click(self):
+        self.chat_display.append("Profile button clicked!")
+        # Add specific logic for Profile here
+
+    def handle_create_group_click(self):
+        self.chat_display.append("Create Group button clicked!")
+        # Add specific logic for creating a group here
+
+    def handle_notification_click(self):
+        """Display notifications for the user."""
+        self.chat_display.clear()
+
+        notifications = db_handler_friends.fetch_notifications(self.user_id)
+        if notifications:
+            self.message.show_success_message(f"Hey {self.name}! You have {len(notifications)} new notifications. Click the bell icon to view them.")
+            for notification_id, message, created_at in notifications:
+                self.chat_display.append(f"[{created_at}]: {message}")
+            db_handler_friends.mark_notifications_as_read(self.user_id)
+        else:
+            self.chat_display.append("No new notifications.")
+
+    def handle_add_friend_click(self):
+        """Send a friend request to another user."""
+        # Get friend name input from the user
+        friend_name, ok = QInputDialog.getText(
+            self, "Add Friend", "Enter the name of your friend:"
+        )
+
+        if ok and friend_name:
+            # Normalize the friend name to prevent input issues
+            friend_name = friend_name.strip().title()
+
+            # Call the add_friend_request function
+            try:
+                db_handler_friends.add_friend_request(self.user_id, friend_name)
+                # Only update the chat display if the request was successful
+                self.chat_display.append(f"Friend request sent to {friend_name}")
+            except Exception as e:
+                # Handle any unexpected errors and show feedback
+                QMessageBox.critical(self, "Error", f"Failed to send friend request: {str(e)}")
+
+    def handle_remove_friend_click(self):
+        self.chat_display.append("Remove Friend button clicked!")
+        # Add specific logic for removing a friend here
+
+    def handle_settings_click(self):
+        self.chat_display.append("Settings button clicked!")
+        # Add specific logic for settings here
+
+    def handle_logout_click(self):
+        """Handle logout button click."""
+        self.open_login_window()
+
     def open_chat_with_friend(self, item):
         """Handle opening a chat with a selected friend."""
+        self.chat_display.clear()
         self.chat_display.append(f"Chatting with {item.text()}...\n")
         self.chat_display.setFocus()
 
@@ -235,3 +316,11 @@ class MainWindow(QMainWindow):
         if message:
             self.chat_display.append(f"You: {message}")
             self.message_input.clear()
+
+    def open_login_window(self):
+        # Create and show the login window if not already created
+        if self.login_window is None:
+            self.login_window = login_window.LoginWindow()
+
+        self.login_window.show()
+        self.close()

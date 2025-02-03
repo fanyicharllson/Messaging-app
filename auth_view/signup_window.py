@@ -144,12 +144,16 @@ class AuthWindow(QMainWindow):
         user.set_name(name)
         user.set_phone_number(phone_number)
 
+        # get user id
+        user_id = db_handler.fetch_user_id(name, phone_number)
+        user.set_user_id(user_id)
 
+        print(f"User Id is {user_id}")
 
         # self.message.clear_inputs(self.name_input, self.phone_input)
 
         # Show the message window after signing up
-        self.message_window = MainWindow(name, phone_number)
+        self.message_window = MainWindow(name, phone_number, user_id)
         self.message_window.show()
         self.close()
 
