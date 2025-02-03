@@ -48,3 +48,26 @@ def validate_user_data(name, phone_number):
     if len(phone_number) < 9:
         return False, "Phone number must be at least 9 digits."
     return True, ""
+
+def login_user(name, phone):
+        """
+        Checks if a user with the given name and phone number exists in the database.
+
+        :param name: The name of the user.
+        :param phone: The phone number of the user.
+        :return: True if the user exists, False otherwise.
+        """
+        conn = create_connection()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT * FROM users WHERE name = ? AND phone_number = ?", (name, phone)
+                )
+                user = cursor.fetchone()
+                return user is not None
+            except sqlite3.Error as e:
+                print(f"Error during login: {e}")
+                return False
+            finally:
+                conn.close()

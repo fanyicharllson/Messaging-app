@@ -1,11 +1,17 @@
 # login_window.py
+import qtawesome as qta
 from PySide6.QtWidgets import (
-    QMainWindow, QLineEdit, QVBoxLayout, QWidget, QLabel, QPushButton
+    QMainWindow, QLineEdit, QVBoxLayout, QWidget, QLabel, QPushButton, QMessageBox
 )
 from PySide6.QtCore import Qt
-import qtawesome as qta
-
 from auth_view.signup_window import AuthWindow
+from backend_controller import db_handler
+from Message_app_view.message_view import MainWindow
+from helpers.log_message import LogMessage
+from sessions.User import User
+
+
+
 
 
 class LoginWindow(QMainWindow):
@@ -17,7 +23,8 @@ class LoginWindow(QMainWindow):
         self.setWindowTitle("Login to ChatHub")
         self.setFixedSize(900, 600)
         self.setStyleSheet("background-color: #2c3e50;")
-
+        self.message = LogMessage()
+        self.message_window = None
 
         # Central widget and layout
         central_widget = QWidget()
@@ -45,20 +52,20 @@ class LoginWindow(QMainWindow):
         layout.addWidget(subtitle)
 
         # Email input
-        name_input = QLineEdit()
-        name_input.setPlaceholderText("Enter your name")
-        name_input.setStyleSheet(
+        self.name_input = QLineEdit()
+        self.name_input.setPlaceholderText("Enter your name")
+        self.name_input.setStyleSheet(
             "font-size: 18px; padding: 10px; border: 2px solid white; border-radius: 5px; color: white; background-color: #34495e;"
         )
-        layout.addWidget(name_input)
+        layout.addWidget(self.name_input)
 
         # Password input
-        phone_input = QLineEdit()
-        phone_input.setPlaceholderText("Enter your phone number")
-        phone_input.setStyleSheet(
+        self.phone_input = QLineEdit()
+        self.phone_input.setPlaceholderText("Enter your phone number")
+        self.phone_input.setStyleSheet(
             "font-size: 18px; padding: 10px; border: 2px solid white; border-radius: 5px; color: white; background-color: #34495e;"
         )
-        layout.addWidget(phone_input)
+        layout.addWidget(self.phone_input)
 
         # Login Button
         login_btn = QPushButton("Login")
@@ -78,6 +85,7 @@ class LoginWindow(QMainWindow):
             """
         )
         login_btn.setCursor(Qt.PointingHandCursor)
+        login_btn.clicked.connect(self.handle_login)
         layout.addWidget(login_btn)
 
         # Link-like button for "Forgot Password?"
@@ -102,3 +110,31 @@ class LoginWindow(QMainWindow):
         self.signup_window.show()
         self.close()
 
+    def handle_login(self):
+        """Handle user login logic."""
+        name = self.name_input.text().strip()
+        phone_number = self.phone_input.text().strip()
+
+        if not name or not phone_number:
+            self.message.show_error_message("Name or phone number cannot be empty.")
+            return
+
+        if db_handler.login_user(name, phone_number):
+            self.message.show_success_message("Login successful!")
+
+
+            #Establishing a session
+            user = User(name, phone_number)
+            user.set_name(name)
+            user.set_phone_number(phone_number)
+
+
+            # self.message.clear_inputs(self.name_input, self.phone_input)
+
+            #showing the message window after login
+            self.message_window = MainWindow(name, phone_number)
+            self.message_window.show()
+            self.close()
+
+        else:
+           self.message.show_error_message("Invalid name or phone number. Please try again.")

@@ -7,6 +7,8 @@ from PySide6.QtCore import Qt, Signal
 from auth_view import login_window #avoiding circular imports
 from backend_controller import db_handler
 from helpers.log_message import LogMessage
+from Message_app_view.message_view import MainWindow
+from sessions.User import User
 
 
 class AuthWindow(QMainWindow):
@@ -30,6 +32,7 @@ class AuthWindow(QMainWindow):
         self.setFixedSize(900, 600)
         self.setStyleSheet("background-color: #2c3e50;")
         self.message = LogMessage()
+        self.message_window = None
 
 
         # Central widget and layout
@@ -135,6 +138,19 @@ class AuthWindow(QMainWindow):
         # Insert user into the database
         db_handler.insert_user(name, phone_number)
         self.message.show_success_message("Account created successfully!")
-        self.message.clear_inputs(self.name_input, self.phone_input)
+
+        # Establishing a session
+        user = User(name, phone_number)
+        user.set_name(name)
+        user.set_phone_number(phone_number)
+
+
+
+        # self.message.clear_inputs(self.name_input, self.phone_input)
+
+        # Show the message window after signing up
+        self.message_window = MainWindow(name, phone_number)
+        self.message_window.show()
+        self.close()
 
 
