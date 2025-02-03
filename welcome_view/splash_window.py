@@ -21,7 +21,7 @@ class SplashWindow(QWidget):
 
         # Logo at the top center
         self.logo = QLabel()
-        pixmap = QPixmap("assets/logo.jpg")
+        pixmap = QPixmap("assets/logo2.png")
         if not pixmap.isNull():
             self.logo.setPixmap(pixmap.scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         else:

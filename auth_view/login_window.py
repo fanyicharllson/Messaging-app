@@ -81,7 +81,7 @@ class LoginWindow(QMainWindow):
         layout.addWidget(login_btn)
 
         # Link-like button for "Forgot Password?"
-        link_label = QPushButton("Already have an account? | Forgot number?")
+        link_label = QPushButton("Don't have an account?")
         link_label.setStyleSheet(
             "font-size: 16px; color: #1abc9c; background: none; border: none; text-decoration: underline; cursor: pointer;"
         )
