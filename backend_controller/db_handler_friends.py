@@ -40,6 +40,21 @@ def add_friend_request(sender_id, friend_name, self=None):
     if result:
         receiver_id = result[0]
 
+        # Check if the users are already friends
+        cursor.execute(
+            """
+            SELECT id FROM friends
+            WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)
+            """,
+            (sender_id, receiver_id, receiver_id, sender_id),
+        )
+        existing_friendship = cursor.fetchone()
+
+        if existing_friendship:
+            QMessageBox.information(self, "Info", "You are already friends with this user.")
+            connection.close()
+            return
+
         # Check if a request already exists
         cursor.execute(
             """
@@ -64,7 +79,7 @@ def add_friend_request(sender_id, friend_name, self=None):
             except sqlite3.IntegrityError as e:
                 QMessageBox.warning(self, "Error", f"Failed to send friend request: {str(e)}")
     else:
-        QMessageBox.warning(self, "Error", "User not found.")
+        QMessageBox.warning(self, "Error", "Sorry, the user is not registered to our system yet.")
 
     connection.close()
 

@@ -265,7 +265,6 @@ class MainWindow(QMainWindow):
 
         notifications = db_handler_friends.fetch_notifications(self.user_id)
         if notifications:
-            self.message.show_success_message(f"Hey {self.name}! You have {len(notifications)} new notifications. Click the bell icon to view them.")
             for notification_id, message, created_at in notifications:
                 self.chat_display.append(f"[{created_at}]: {message}")
             db_handler_friends.mark_notifications_as_read(self.user_id)
@@ -286,8 +285,6 @@ class MainWindow(QMainWindow):
             # Call the add_friend_request function
             try:
                 db_handler_friends.add_friend_request(self.user_id, friend_name)
-                # Only update the chat display if the request was successful
-                self.chat_display.append(f"Friend request sent to {friend_name}")
             except Exception as e:
                 # Handle any unexpected errors and show feedback
                 QMessageBox.critical(self, "Error", f"Failed to send friend request: {str(e)}")
