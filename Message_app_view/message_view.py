@@ -269,7 +269,7 @@ class MainWindow(QMainWindow):
                 self.chat_display.append(f"[{created_at}]: {message}")
             db_handler_friends.mark_notifications_as_read(self.user_id)
         else:
-            self.chat_display.append("No new notifications.")
+            self.message.show_error_message("No new notifications.")
 
     def handle_add_friend_click(self):
         """Send a friend request to another user."""

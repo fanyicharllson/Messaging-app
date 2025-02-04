@@ -3,6 +3,8 @@ import backend_controller.db_handler as db_handler
 from PySide6.QtWidgets import QMessageBox
 
 
+
+
 def connect_to_database():
     """
     Connect to the SQLite database and return the connection object.
@@ -155,8 +157,16 @@ def respond_to_friend_requests(user_id, self=None):
                 "INSERT INTO friends (user_id, friend_id) VALUES (?, ?), (?, ?)",
                 (user_id, sender_id, sender_id, user_id)
             )
+
+            # Fetch name by id and add to notifications
+            cursor.execute("SELECT name FROM users WHERE id = ?", (user_id,))
+            sender_name = cursor.fetchone()
+            sender_name = sender_name[0]
+
+            print(f"Sender name from db_handler_friends.py {sender_name}")
+
             # Add a notification for the sender
-            notification_message = f"{self.user_name} accepted your friend request!"
+            notification_message = f"{sender_name} accepted your friend request!"
             cursor.execute(
                 "INSERT INTO notifications (user_id, message) VALUES (?, ?)",
                 (sender_id, notification_message)
