@@ -1,9 +1,14 @@
+import base64
+import json
+
 import qtawesome as qta
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QMainWindow, QLabel, QVBoxLayout, QHBoxLayout, QWidget, QFrame, QLineEdit,
-    QPushButton, QListWidget, QListWidgetItem, QTextEdit, QToolButton, QApplication, QInputDialog, QMessageBox
+    QPushButton, QListWidget, QListWidgetItem, QTextEdit, QToolButton, QApplication, QInputDialog, QMessageBox,
+    QFileDialog, QDialog
 )
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt, QSize, QTimer
 from auth_view import login_window #avoiding circular imports
 from backend_controller import db_handler_friends
 from helpers.log_message import LogMessage
@@ -14,6 +19,8 @@ class MainWindow(QMainWindow):
 
     def __init__(self, name, phone_number, user_id):
         super().__init__()
+        self.selected_friend = None
+        self.message_poll_timer = None
         self.message_input = None
         self.login_window = None
         self.message = LogMessage()
@@ -24,10 +31,13 @@ class MainWindow(QMainWindow):
         self.phone_number = phone_number
         self.user_id = user_id
 
-        #invoke notifications
+        # Start polling for new messages
+        self.start_polling_for_messages()
+
+        #invoke friend requests
         db_handler_friends.check_friend_requests(self.user_id)
 
-        notifications = db_handler_friends.fetch_notifications(self.user_id)
+        notifications = db_handler_friends.fetch_notifications(self.user_id, "notifications")
         if notifications:
             self.message.show_success_message(
                 f"Hey {self.name}! You have {len(notifications)} new notifications. Click the bell icon to view them.")
@@ -60,6 +70,12 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         central_widget.setLayout(main_layout)
         self.setCentralWidget(central_widget)
+
+        message_notifications = db_handler_friends.fetch_notifications(self.user_id, "message_notifications")
+        if message_notifications:
+            for _, message, created_at in message_notifications:
+                self.message.show_success_message(f"{message} at {created_at}. Click on the name of the sender to reply or view the message.")
+            db_handler_friends.mark_notifications_as_read(self.user_id, "message_notifications")
 
     def create_sidebar(self):
         """Creates the left sidebar with icons and friend list split horizontally."""
@@ -138,10 +154,8 @@ class MainWindow(QMainWindow):
             """
         )
 
-        # Add some dummy friends
+        # fetch friends from the database
         friends = db_handler_friends.load_friends(self.user_id)
-        print(f"friends are: {friends}")
-        print(f"id is: {self.user_id}")
         for friend in friends:
             item = QListWidgetItem(friend[0])
             friend_list.addItem(item)
@@ -174,12 +188,22 @@ class MainWindow(QMainWindow):
         chat_area.setContentsMargins(10, 10, 10, 10)
         chat_area.setSpacing(15)
 
-
+        # Load profile picture or placeholder
+        profile_pic_path = db_handler_friends.get_profile_picture_path_from_db(self.user_id)
+        profile_pic_label = QLabel()
+        profile_pixmap = QPixmap(profile_pic_path).scaled(50, 50, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        profile_pic_label.setPixmap(profile_pixmap)
+        profile_pic_label.setFixedSize(50, 50)
+        profile_pic_label.setCursor(Qt.PointingHandCursor)
+        profile_pic_label.setStyleSheet("border-radius: 25px; border: 2px solid #1abc9c;")
+        profile_pic_label.mousePressEvent = self.handle_profile_click  # Open dialog on click
 
         # Chat header
         chat_header = QLabel(f"Welcome {self.name}! Select a friend to start chatting!")
         chat_header.setStyleSheet("font-size: 20px; font-weight: bold; color: white;")
-        chat_area.addWidget(chat_header, alignment=Qt.AlignCenter)
+
+        chat_area.addWidget(profile_pic_label)
+        chat_area.addWidget(chat_header, alignment=Qt.AlignLeft)
 
         # Chat display area
         self.chat_display = QTextEdit()
@@ -240,6 +264,54 @@ class MainWindow(QMainWindow):
         send_btn.clicked.connect(self.send_message)
         input_layout.addWidget(send_btn)
 
+        # --- New buttons for sending images and documents ---
+        image_btn = QPushButton("Image")
+        image_btn.setCursor(Qt.PointingHandCursor)
+        image_btn.setStyleSheet(
+            """
+            QPushButton {
+                background-color: #2980b9;
+                color: white;
+                font-size: 16px;
+                padding: 10px;
+                border: none;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #3498db;
+            }
+            QPushButton:pressed {
+                background-color: #2471a3;
+            }
+            """
+        )
+        image_btn.clicked.connect(self.send_image)
+        input_layout.addWidget(image_btn)
+
+        doc_btn = QPushButton("Doc")
+        doc_btn.setCursor(Qt.PointingHandCursor)
+        doc_btn.setStyleSheet(
+            """
+            QPushButton {
+                background-color: #8e44ad;
+                color: white;
+                font-size: 16px;
+                padding: 10px;
+                border: none;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #9b59b6;
+            }
+            QPushButton:pressed {
+                background-color: #7d3c98;
+            }
+            """
+        )
+        doc_btn.clicked.connect(self.send_doc)
+        input_layout.addWidget(doc_btn)
+        # --- End new buttons ---
+
         chat_area.addLayout(input_layout)
 
         # Chat area container
@@ -247,13 +319,91 @@ class MainWindow(QMainWindow):
         chat_area_container.setLayout(chat_area)
         return chat_area_container
 
+    def start_polling_for_messages(self):
+        """Starts a timer to poll for new messages."""
+        self.message_poll_timer = QTimer()
+        self.message_poll_timer.timeout.connect(self.check_for_new_messages)
+        self.message_poll_timer.start(2000)  # Poll every 2 seconds
+
+    def check_for_new_messages(self):
+        """Checks for new messages from the database."""
+        selected_friend = getattr(self, "selected_friend", None)
+
+        print(f"selected friend: {selected_friend}")
+        if not selected_friend:
+            return
+
+            # Append the latest message to the chat display (if not already shown)
+        latest_message = db_handler_friends.check_for_new_messages(self.user_id, selected_friend["id"])
+
+        if latest_message:
+            sender_id, content, timestamp = latest_message
+            sender = "You" if sender_id == self.user_id else "Friend"
+
+            # Check if the message is already displayed
+            last_message = self.chat_display.toPlainText().split("\n")[-1]
+            if last_message != f"{sender} ({timestamp}): {content}":
+                self.chat_display.append(f"{sender} ({timestamp}): {content}")
+
+
+
     def handle_status_click(self):
         self.chat_display.append("Status button clicked!")
         # Add specific logic for Status here
 
-    def handle_profile_click(self):
-        self.chat_display.append("Profile button clicked!")
-        # Add specific logic for Profile here
+    def handle_profile_click(self, event):
+        """Opens a dialog to edit profile details."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Edit Profile")
+        dialog.setFixedSize(400, 300)
+
+        # Layout for the dialog
+        layout = QVBoxLayout()
+
+        # Display current profile picture
+        current_pic_label = QLabel("Current Picture:")
+        layout.addWidget(current_pic_label)
+        current_profile_pic = QLabel()
+        current_pixmap = QPixmap(db_handler_friends.get_profile_picture_path_from_db(self.user_id)).scaled(100, 100, Qt.KeepAspectRatio,
+                                                                                 Qt.SmoothTransformation)
+        current_profile_pic.setPixmap(current_pixmap)
+        current_profile_pic.setFixedSize(100, 100)
+        current_profile_pic.setStyleSheet("border-radius: 50px; border: 2px solid #1abc9c;")
+        layout.addWidget(current_profile_pic, alignment=Qt.AlignCenter)
+
+        # Button to upload a new picture
+        upload_button = QPushButton("Upload New Picture")
+        upload_button.clicked.connect(self.upload_new_profile_picture)
+        layout.addWidget(upload_button, alignment=Qt.AlignCenter)
+
+        # Name input
+        name_label = QLabel("Name:")
+        name_input = QLineEdit(self.name)
+        layout.addWidget(name_label)
+        layout.addWidget(name_input)
+
+        # Number input
+        number_label = QLabel("Phone Number:")
+        number_input = QLineEdit(self.phone_number)
+        layout.addWidget(number_label)
+        layout.addWidget(number_input)
+
+        # Save button
+        save_button = QPushButton("Save")
+        save_button.clicked.connect(lambda: db_handler_friends.save_profile_changes(dialog, self.user_id, name_input.text(), number_input.text()))
+        self.name = name_input.text()
+        self.phone_number = number_input.text()
+        layout.addWidget(save_button, alignment=Qt.AlignRight)
+
+        dialog.setLayout(layout)
+        dialog.exec()
+
+    def upload_new_profile_picture(self):
+        """Uploads a new profile picture and updates the database."""
+        image_path, _ = QFileDialog.getOpenFileName(self, "Select Profile Picture", "", "Images (*.png *.jpg *.jpeg)")
+        if image_path:
+            # Update the profile picture in the database
+            db_handler_friends.update_profile_picture_in_db( self.user_id, image_path)
 
     def handle_create_group_click(self):
         self.chat_display.append("Create Group button clicked!")
@@ -263,11 +413,11 @@ class MainWindow(QMainWindow):
         """Display notifications for the user."""
         self.chat_display.clear()
 
-        notifications = db_handler_friends.fetch_notifications(self.user_id)
+        notifications = db_handler_friends.fetch_notifications(self.user_id, "notifications")
         if notifications:
             for notification_id, message, created_at in notifications:
                 self.chat_display.append(f"[{created_at}]: {message}")
-            db_handler_friends.mark_notifications_as_read(self.user_id)
+            db_handler_friends.mark_notifications_as_read(self.user_id, "notifications")
         else:
             self.message.show_error_message("No new notifications.")
 
@@ -307,12 +457,91 @@ class MainWindow(QMainWindow):
         self.chat_display.append(f"Chatting with {item.text()}...\n")
         self.chat_display.setFocus()
 
+        # Get friend name from the item text
+        friend_name = item.text()
+
+
+        # Load friends data (should be a list of tuples like [(friend_name, friend_id), ...])
+        friends = db_handler_friends.load_friends(self.user_id)
+
+        # Use a generator expression to find the tuple matching the selected friend name
+        friend_data = next((friend for friend in friends if friend[0] == friend_name), None)
+
+        if not friend_data:
+            QMessageBox.warning(self, "Warning", f"Could not find details for {friend_name}.")
+            return
+
+        # Now, friend_data is expected to be a tuple like (friend_name, friend_id)
+        self.selected_friend = {
+            "id": friend_data[1],  # Friend's numeric ID
+            "name": friend_name,
+        }
+
+        # Load chat history with the selected friend
+        self.load_chat_history(friend_data[1])
+
     def send_message(self):
-        """Handle sending a message."""
-        message = self.message_input.text().strip()
-        if message:
-            self.chat_display.append(f"You: {message}")
-            self.message_input.clear()
+        """Handles sending messages."""
+        selected_friend = getattr(self, "selected_friend", None)
+        message_content = self.message_input.text().strip()
+
+        print(f"selected friend from send_message {selected_friend}")
+
+        if not selected_friend:
+            QMessageBox.warning(self, "Warning", "Please select a friend to chat with.")
+            return
+
+        if not message_content:
+            QMessageBox.warning(self, "Warning", "Cannot send an empty message.")
+            return
+
+        # Save the message to the database
+        db_handler_friends.save_message(self.user_id, selected_friend["id"], message_content)
+
+        # Clear the message input field
+        self.message_input.clear()
+
+
+        # Refresh the chat display for both sender and receiver
+        self.load_chat_history(selected_friend["id"])
+
+
+    def load_chat_history(self, friend_id):
+        """Loads the chat history between the current user and the selected friend."""
+
+        chat_history = db_handler_friends.load_chat_history_db(self.user_id, friend_id)
+
+        # Clear the chat display and load the conversation
+        self.chat_display.clear()
+        for sender_id, content, timestamp, message_type in chat_history:
+            # If the message is a file (image or doc), process the content as JSON.
+            if message_type == "image":
+                try:
+                    file_info = json.loads(content)
+                    image_data = base64.b64decode(file_info["data"])
+                    pixmap = QPixmap()
+                    pixmap.loadFromData(image_data)
+                    image_label = QLabel()
+                    image_label.setPixmap(pixmap.scaled(200, 200, Qt.KeepAspectRatio))
+                    self.chat_display.append(f"{sender_id} ({timestamp}):")
+                    self.chat_display.layout().addWidget(image_label)
+                except Exception as e:
+                    self.chat_display.append(f"[IMAGE]: (Error loading image)")
+                    print(f"Error displaying image: {str(e)}")
+
+            elif message_type == "doc":
+                try:
+                    file_info = json.loads(content)
+                    file_name = file_info["file_name"]
+                    self.chat_display.append(f"[DOCUMENT]: {file_name} (Click to download)")
+                    # Optionally add a button for saving the document
+                except Exception as e:
+                    self.chat_display.append(f"[DOCUMENT]: (Error loading document)")
+                    print(f"Error displaying document: {str(e)}")
+            else:
+             sender = "You" if sender_id == self.user_id else "Friend"
+             self.chat_display.append(f"{sender} ({timestamp}): {content}")
+
 
     def open_login_window(self):
         # Create and show the login window if not already created
@@ -321,3 +550,62 @@ class MainWindow(QMainWindow):
 
         self.login_window.show()
         self.close()
+
+    def send_image(self):
+        """Handles sending image files."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select Image", "", "Images (*.png *.jpg *.jpeg *.bmp *.gif)"
+        )
+        if file_path:
+            try:
+                with open(file_path, "rb") as file:
+                    file_data = file.read()
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to read the image: {str(e)}")
+                return
+
+            selected_friend = getattr(self, "selected_friend", None)
+            if not selected_friend:
+                QMessageBox.warning(self, "Warning", "Please select a friend to chat with.")
+                return
+
+            # Save the image file as a message to the database.
+            # You need to implement save_file_message() in your db_handler_friends module.
+            db_handler_friends.save_file_message(
+                sender_id=self.user_id,
+                receiver_id=selected_friend["id"],
+                file_data=file_data,
+                file_type="image",
+                file_name=file_path.split("/")[-1]
+            )
+            self.load_chat_history(selected_friend["id"])
+
+    def send_doc(self):
+        """Handles sending document files."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select Document", "", "Documents (*.pdf *.doc *.docx *.txt)"
+        )
+        if file_path:
+            try:
+                with open(file_path, "rb") as file:
+                    file_data = file.read()
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to read the document: {str(e)}")
+                return
+
+            selected_friend = getattr(self, "selected_friend", None)
+            if not selected_friend:
+                QMessageBox.warning(self, "Warning", "Please select a friend to chat with.")
+                return
+
+            # Save the document file as a message to the database.
+            db_handler_friends.save_file_message(
+                sender_id=self.user_id,
+                receiver_id=selected_friend["id"],
+                file_data=file_data,
+                file_type="document",
+                file_name=file_path.split("/")[-1]
+            )
+            self.load_chat_history(selected_friend["id"])
+
+

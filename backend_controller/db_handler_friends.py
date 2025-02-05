@@ -1,3 +1,5 @@
+import base64
+import json
 import sqlite3
 import backend_controller.db_handler as db_handler
 from PySide6.QtWidgets import QMessageBox
@@ -91,7 +93,7 @@ def load_friends(user_id):
     cursor = connection.cursor()
 
     query = """
-        SELECT u.name
+        SELECT u.name, u.id
         FROM friends f
         JOIN users u ON u.id = f.friend_id
         WHERE f.user_id = ?
@@ -163,7 +165,6 @@ def respond_to_friend_requests(user_id, self=None):
             sender_name = cursor.fetchone()
             sender_name = sender_name[0]
 
-            print(f"Sender name from db_handler_friends.py {sender_name}")
 
             # Add a notification for the sender
             notification_message = f"{sender_name} accepted your friend request!"
@@ -179,14 +180,14 @@ def respond_to_friend_requests(user_id, self=None):
 
     connection.close()
 
-def fetch_notifications(user_id):
+def fetch_notifications(user_id, table: str):
     """Fetch unread notifications for a user."""
     connection = db_handler.create_connection()
     cursor = connection.cursor()
 
-    query = """
+    query = f"""
         SELECT id, message, created_at
-        FROM notifications
+        FROM {table}
         WHERE user_id = ? AND is_read = 0
         ORDER BY created_at DESC
     """
@@ -196,15 +197,302 @@ def fetch_notifications(user_id):
     connection.close()
     return notifications
 
-
-def mark_notifications_as_read(user_id):
+def mark_notifications_as_read(user_id, table: str):
     """Mark all notifications as read for a user."""
     connection = db_handler.create_connection()
     cursor = connection.cursor()
 
-    query = "UPDATE notifications SET is_read = 1 WHERE user_id = ?"
+    query = f"UPDATE {table} SET is_read = 1 WHERE user_id = ?"
     cursor.execute(query, (user_id,))
     connection.commit()
 
     connection.close()
 
+def save_message(user_id, selected_friend, message_content, self=None):
+    """Handles saving messages."""
+    # Save the message to the database
+    connection = connect_to_database()
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute(
+            """
+            INSERT INTO messages (sender_id, receiver_id, content)
+            VALUES (?, ?, ?)
+            """,
+            (user_id, selected_friend, message_content),
+        )
+        QMessageBox.information(self, "Success", "Message sent successfully!")
+        # storing notification for the receiver
+        # Fetch sender name by id and add to notifications
+        cursor.execute("SELECT name FROM users WHERE id = ?", (user_id,))
+        sender_name = cursor.fetchone()
+        sender_name = sender_name[0]
+
+        # Add a notification for the sender
+        notification_message = f"{sender_name} sent you a message!"
+        cursor.execute(
+            """
+            INSERT INTO message_notifications (user_id, message)
+            VALUES (?, ?)
+            """,
+            (selected_friend, notification_message),
+        )
+        connection.commit()
+
+    except sqlite3.Error as e:
+        QMessageBox.warning(self, "Error", f"Failed to send message: {str(e)}")
+    finally:
+        connection.close()
+
+def load_chat_history_db(friend_id, user_id, self=None):
+    """Loads the chat history between the current user and the selected friend."""
+    connection = connect_to_database()
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute(
+            """
+            SELECT sender_id, content, timestamp, message_type  FROM messages
+            WHERE (sender_id = ? AND receiver_id = ?)
+               OR (sender_id = ? AND receiver_id = ?)
+            ORDER BY timestamp ASC
+            """,
+            (user_id, friend_id, friend_id, user_id),
+        )
+        chat_history = cursor.fetchall()
+        return chat_history
+    except sqlite3.Error as e:
+        QMessageBox.warning(self, "Error", f"Failed to load chat history: {str(e)}")
+        return []
+
+    finally:
+        connection.close()
+
+def check_for_new_messages(user_id, selected_friend):
+    """Checks for new messages from the database."""
+    connection = connect_to_database()
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute(
+            """
+            SELECT sender_id, content, timestamp FROM messages
+            WHERE (sender_id = ? AND receiver_id = ?)
+               OR (sender_id = ? AND receiver_id = ?)
+            ORDER BY timestamp DESC LIMIT 1
+            """,
+            (user_id, selected_friend, selected_friend, user_id),
+        )
+        latest_message = cursor.fetchone()
+        return latest_message
+
+    except sqlite3.Error as e:
+        print(f"Failed to check for new messages: {str(e)}")
+    finally:
+        connection.close()
+
+def save_file_message(sender_id, receiver_id, file_data, file_type, file_name):
+    """
+    Saves a file (image or document) as a message in the database.
+
+    The file's binary data is encoded into a base64 string and then stored in the
+    'content' column as a JSON object containing the file name and encoded data.
+
+    Parameters:
+        sender_id (int): The ID of the user sending the file.
+        receiver_id (int): The ID of the friend receiving the file.
+        file_data (bytes): The binary data of the file.
+        file_type (str): The type of the file, e.g., 'image' or 'doc'.
+        file_name (str): The original name of the file.
+    """
+    # Encode the binary file data to a base64 string
+    encoded_data = base64.b64encode(file_data).decode('utf-8')
+
+    # Prepare the JSON content with file metadata
+    content_dict = {
+        "file_name": file_name,
+        "data": encoded_data
+    }
+    content_json = json.dumps(content_dict)
+
+    # Insert the message into the messages table
+    try:
+        conn = connect_to_database()
+        cursor = conn.cursor()
+        query = """
+            INSERT INTO messages (sender_id, receiver_id, content, message_type)
+            VALUES (?, ?, ?, ?)
+        """
+        cursor.execute(query, (sender_id, receiver_id, content_json, file_type))
+        conn.commit()
+    except sqlite3.Error as e:
+        print("SQLite error:", e)
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_profile_picture_path_from_db(user_id):
+    """
+    Fetches the profile picture path for a user from the database.
+    If no path exists, returns the default placeholder path.
+
+    Args:
+        user_id (int): The ID of the user.
+
+    Returns:
+        str: The path to the profile picture or a default placeholder.
+    """
+    # Define the default placeholder image path
+    default_placeholder_path = "assets/logo.jpg"
+
+    # Establish connection to the SQLite database
+    try:
+        connection = db_handler.create_connection()
+        cursor = connection.cursor()
+
+        # Query to fetch the image path
+        query = "SELECT image_path FROM users WHERE id = ?"
+        cursor.execute(query, (user_id,))
+        result = cursor.fetchone()
+
+        # Check if a result is found and return the path, otherwise return the default
+        if result and result[0]:
+            return result[0]
+        else:
+            return default_placeholder_path
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        return default_placeholder_path
+    finally:
+        # Ensure the connection is closed
+        if connection:
+            connection.close()
+
+def update_profile_picture_in_db(user_id, image_path, self=None):
+    """
+    Updates the profile picture path for a user in the database.
+
+    Args:
+        user_id (int): The ID of the user.
+        image_path (str): The new profile picture path.
+
+    Returns:
+        bool: True if the update was successful, False otherwise.
+    """
+    try:
+        # Establish connection to the SQLite database
+        connection = db_handler.create_connection()
+        cursor = connection.cursor()
+
+        # Update query
+        query = "UPDATE users SET image_path = ? WHERE id = ?"
+        cursor.execute(query, (image_path, user_id))
+
+        # Commit changes
+        connection.commit()
+
+        # Check if the update was successful
+        if cursor.rowcount > 0:
+            QMessageBox.information(self, "Success", "Profile picture updated successfully!")
+            print(f"Successfully updated profile picture for user_id: {user_id}")
+            return True
+        else:
+            print(f"No rows updated. Check if user_id {user_id} exists.")
+            return False
+
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        return False
+
+    finally:
+        # Ensure the connection is closed
+        if connection:
+            connection.close()
+
+def save_profile_changes(dialog, user_id, new_name, new_number, self=None):
+    """
+    Saves changes to the user's profile (name and number) in the database.
+
+    Args:
+        dialog (QDialog): The dialog instance that initiated the change.
+        user_id (int): The ID of the user.
+        new_name (str): The new name of the user.
+        new_number (str): The new phone number of the user.
+
+    Returns:
+        None
+    """
+    try:
+        # Establish connection to the SQLite database
+        connection = db_handler.create_connection()
+        cursor = connection.cursor()
+
+        # Update query
+        query = "UPDATE users SET name = ?, phone_number = ? WHERE id = ?"
+        cursor.execute(query, (new_name, new_number, user_id))
+
+        # Commit changes
+        connection.commit()
+
+        # Check if the update was successful
+        if cursor.rowcount > 0:
+            print(f"Profile updated successfully for user_id: {user_id}")
+            QMessageBox.information(self, "Success", "Profile updated successfully!")
+
+
+            # Accept the dialog (close it)
+            dialog.accept()
+        else:
+            print(f"No rows updated. Check if user_id {user_id} exists.")
+            dialog.reject()
+
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        dialog.reject()
+
+    finally:
+        # Ensure the connection is closed
+        if connection:
+            connection.close()
+
+
+def update_profile_in_db(user_id, name, number, self=None):
+    """
+    Updates the profile details (name and phone number) in the database.
+
+    Args:
+        user_id (int): The ID of the user whose profile is being updated.
+        name (str): The new name of the user.
+        number (str): The new phone number of the user.
+
+    Returns:
+        None
+    """
+    try:
+        # Connect to the SQLite database
+        connection = db_handler.create_connection()
+        cursor = connection.cursor()
+
+        # Update query
+        query = "UPDATE users SET name = ?, phone_number = ? WHERE id = ?"
+        cursor.execute(query, (name, number, user_id))
+
+        # Commit changes
+        connection.commit()
+
+        # Check if the update was successful
+        if cursor.rowcount > 0:
+            print(f"Profile updated in database: Name={name}, Number={number}")
+            QMessageBox.information(self, "Success", "Profile updated successfully!")
+        else:
+            print(f"Profile update failed. Check if user_id {user_id} exists in the database.")
+
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+
+    finally:
+        # Ensure the connection is closed
+        if connection:
+            connection.close()
