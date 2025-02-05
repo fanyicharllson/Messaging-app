@@ -395,7 +395,7 @@ def update_profile_picture_in_db(user_id, image_path, self=None):
 
         # Check if the update was successful
         if cursor.rowcount > 0:
-            QMessageBox.information(self, "Success", "Profile picture updated successfully!")
+            QMessageBox.information(self, "Success", "Profile picture updated successfully! Logout and Login  to see changes.")
             print(f"Successfully updated profile picture for user_id: {user_id}")
             return True
         else:
@@ -439,7 +439,7 @@ def save_profile_changes(dialog, user_id, new_name, new_number, self=None):
         # Check if the update was successful
         if cursor.rowcount > 0:
             print(f"Profile updated successfully for user_id: {user_id}")
-            QMessageBox.information(self, "Success", "Profile updated successfully!")
+            QMessageBox.information(self, "Success", "Profile updated successfully! Logout and Login  to see changes.")
 
 
             # Accept the dialog (close it)

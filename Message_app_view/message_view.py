@@ -198,6 +198,11 @@ class MainWindow(QMainWindow):
         profile_pic_label.setStyleSheet("border-radius: 25px; border: 2px solid #1abc9c;")
         profile_pic_label.mousePressEvent = self.handle_profile_click  # Open dialog on click
 
+        #adding username label beside profile pic
+        username_label = QLabel(self.name)
+        username_label.setStyleSheet("font-size: 20px; font-weight: bold; color: white;")
+        chat_area.addWidget(username_label, alignment=Qt.AlignLeft)
+
         # Chat header
         chat_header = QLabel(f"Welcome {self.name}! Select a friend to start chatting!")
         chat_header.setStyleSheet("font-size: 20px; font-weight: bold; color: white;")
