@@ -2,7 +2,7 @@ import base64
 import json
 
 import qtawesome as qta
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QPixmap, QFont
 from PySide6.QtWidgets import (
     QMainWindow, QLabel, QVBoxLayout, QHBoxLayout, QWidget, QFrame, QLineEdit,
     QPushButton, QListWidget, QListWidgetItem, QTextEdit, QToolButton, QApplication, QInputDialog, QMessageBox,
@@ -12,6 +12,7 @@ from PySide6.QtCore import Qt, QSize, QTimer
 from auth_view import login_window #avoiding circular imports
 from backend_controller import db_handler_friends
 from helpers.log_message import LogMessage
+from Status_view.Status_dialog import StatusDialog
 
 
 class MainWindow(QMainWindow):
@@ -24,6 +25,7 @@ class MainWindow(QMainWindow):
         self.message_input = None
         self.login_window = None
         self.message = LogMessage()
+        self.status = StatusDialog(user_id)
         self.setWindowTitle("ChatHub")
         self.setFixedSize(900, 600)
         self.setStyleSheet("background-color: #2c3e50; color: white;")
@@ -88,6 +90,7 @@ class MainWindow(QMainWindow):
         icons = [
             ("fa.bell", "Notification", self.handle_notification_click),
             ("fa.circle", "Status", self.handle_status_click),
+            ("fa.eye", "View Status", self.handle_view_status_click),
             ("fa.user", "Profile", self.handle_profile_click),
             ("fa.group", "Create Group", self.handle_create_group_click),
             ("fa.plus-circle", "Add Friend", self.handle_add_friend_click),
@@ -353,14 +356,14 @@ class MainWindow(QMainWindow):
 
 
     def handle_status_click(self):
-        self.chat_display.append("Status button clicked!")
-        # Add specific logic for Status here
+        """Opens a dialog to post a status."""
+        self.status.show_post_status_dialog()
 
     def handle_profile_click(self, event):
         """Opens a dialog to edit profile details."""
         dialog = QDialog(self)
         dialog.setWindowTitle("Edit Profile")
-        dialog.setFixedSize(400, 300)
+        dialog.setFixedSize(600, 400)
 
         # Layout for the dialog
         layout = QVBoxLayout()
@@ -378,24 +381,34 @@ class MainWindow(QMainWindow):
 
         # Button to upload a new picture
         upload_button = QPushButton("Upload New Picture")
+        upload_button.setStyleSheet(
+            "background-color: #1abc9c; color: white; font-size: 16px; padding: 10px; border: none; border-radius: 5px;")
+        upload_button.setCursor(Qt.PointingHandCursor)
         upload_button.clicked.connect(self.upload_new_profile_picture)
         layout.addWidget(upload_button, alignment=Qt.AlignCenter)
 
         # Name input
         name_label = QLabel("Name:")
         name_input = QLineEdit(self.name)
+        name_input.setStyleSheet(
+            "font-size: 16px; padding: 10px; border: 1px solid #1abc9c; border-radius: 5px;")
         layout.addWidget(name_label)
         layout.addWidget(name_input)
 
         # Number input
         number_label = QLabel("Phone Number:")
         number_input = QLineEdit(self.phone_number)
+        number_input.setStyleSheet(
+            "font-size: 16px; padding: 10px; border: 1px solid #1abc9c; border-radius: 5px;")
         layout.addWidget(number_label)
         layout.addWidget(number_input)
 
         # Save button
         save_button = QPushButton("Save")
         save_button.clicked.connect(lambda: db_handler_friends.save_profile_changes(dialog, self.user_id, name_input.text(), number_input.text()))
+        save_button.setStyleSheet(
+            "background-color: #1abc9c; color: white; font-size: 16px; padding: 10px; border: none; border-radius: 5px;")
+        save_button.setCursor(Qt.PointingHandCursor)
         self.name = name_input.text()
         self.phone_number = number_input.text()
         layout.addWidget(save_button, alignment=Qt.AlignRight)
@@ -428,21 +441,67 @@ class MainWindow(QMainWindow):
 
     def handle_add_friend_click(self):
         """Send a friend request to another user."""
-        # Get friend name input from the user
-        friend_name, ok = QInputDialog.getText(
-            self, "Add Friend", "Enter the name of your friend:"
-        )
+        # Create a custom QInputDialog
+        input_dialog = QInputDialog(self)
+        input_dialog.setWindowTitle("Add Friend")
+        input_dialog.setLabelText("Enter the name of your friend:")
+        input_dialog.setInputMode(QInputDialog.TextInput)
+        input_dialog.setTextValue("")  # Default value
+        input_dialog.resize(600, 500)  # Increase size
+        input_dialog.setStyleSheet("""
+            QInputDialog {
+                background-color: #2c3e50;
+                border: 1px solid white;
+                border-radius: 8px;
+            }
+            QLabel {
+                font-size: 16px;
+                color: white;
+            }
+            QLineEdit {
+                font-size: 15px;
+                padding: 10px;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+            }
+            QPushButton {
+                font-size: 14px;
+                color: white;
+                background-color: #1abc9c;
+                border-radius: 4px;
+                padding: 8px 12px;
+            }
+            QPushButton:hover {
+                background-color: #16a085;
+            }
+        """)
 
-        if ok and friend_name:
-            # Normalize the friend name to prevent input issues
-            friend_name = friend_name.strip().title()
+        # Set the font for the label and text input
+        font = QFont("Arial", 12)
+        input_dialog.setFont(font)
 
-            # Call the add_friend_request function
-            try:
-                db_handler_friends.add_friend_request(self.user_id, friend_name)
-            except Exception as e:
-                # Handle any unexpected errors and show feedback
-                QMessageBox.critical(self, "Error", f"Failed to send friend request: {str(e)}")
+        # Show the dialog and get the result
+        if input_dialog.exec_() == QInputDialog.Accepted:
+            friend_name = input_dialog.textValue()
+
+            if not friend_name:
+                QMessageBox.warning(self, "Warning", "Please enter a friend name.")
+                return
+
+            else:
+                # Normalize the friend name to prevent input issues
+                friend_name = friend_name.strip().title()
+
+
+                # Call the add_friend_request function
+                try:
+                    result = db_handler_friends.add_friend_request(self.user_id, friend_name)
+                    if not result:
+                        return
+                    QMessageBox.information(self, "Success", f"Friend request sent to {friend_name}!")
+                except Exception as e:
+                    # Handle any unexpected errors and show feedback
+                    QMessageBox.critical(self, "Error", f"Failed to send friend request: {str(e)}")
 
     def handle_remove_friend_click(self):
         self.chat_display.append("Remove Friend button clicked!")
@@ -614,3 +673,6 @@ class MainWindow(QMainWindow):
             self.load_chat_history(selected_friend["id"])
 
 
+    def handle_view_status_click(self):
+        """Handle view status button click."""
+        self.status.show_friend_statuses_dialog()

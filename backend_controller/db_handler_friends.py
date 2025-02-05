@@ -79,7 +79,8 @@ def add_friend_request(sender_id, friend_name, self=None):
                     (sender_id, receiver_id),
                 )
                 connection.commit()
-                QMessageBox.information(self, "Success", "Friend request sent!")
+                return True
+                # QMessageBox.information(self, "Success", "Friend request sent!")
             except sqlite3.IntegrityError as e:
                 QMessageBox.warning(self, "Error", f"Failed to send friend request: {str(e)}")
     else:
