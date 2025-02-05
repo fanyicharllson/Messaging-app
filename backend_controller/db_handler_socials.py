@@ -249,8 +249,3 @@ def get_users_who_viewed_status(status_id):
             connection.close()
 
 
-
-
-
-
-

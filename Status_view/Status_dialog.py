@@ -124,6 +124,3 @@ class StatusDialog(QDialog):
 
             dialog.setLayout(layout)
             dialog.exec()
-
-
-

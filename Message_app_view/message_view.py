@@ -13,6 +13,7 @@ from auth_view import login_window #avoiding circular imports
 from backend_controller import db_handler_friends
 from helpers.log_message import LogMessage
 from Status_view.Status_dialog import StatusDialog
+from Create_Group_View.create_group import GroupDialog
 
 
 class MainWindow(QMainWindow):
@@ -25,6 +26,7 @@ class MainWindow(QMainWindow):
         self.message_input = None
         self.login_window = None
         self.message = LogMessage()
+        self.group = GroupDialog(user_id, phone_number)
         self.status = StatusDialog(user_id)
         self.setWindowTitle("ChatHub")
         self.setFixedSize(900, 600)
@@ -93,6 +95,7 @@ class MainWindow(QMainWindow):
             ("fa.eye", "View Status", self.handle_view_status_click),
             ("fa.user", "Profile", self.handle_profile_click),
             ("fa.group", "Create Group", self.handle_create_group_click),
+            ("fa.comments", "Message Group", self.handle_message_group),
             ("fa.plus-circle", "Add Friend", self.handle_add_friend_click),
             ("fa.minus-circle", "Remove Friend", self.handle_remove_friend_click),
             ("fa.cog", "Settings", self.handle_settings_click),
@@ -124,7 +127,7 @@ class MainWindow(QMainWindow):
         # Left section container for icons
         icon_container = QWidget()
         icon_container.setLayout(icon_layout)
-        icon_container.setFixedWidth(60)
+        icon_container.setFixedWidth(80)
         sidebar.addWidget(icon_container)
 
         # Separator line between icons and friend list (optional)
@@ -424,12 +427,23 @@ class MainWindow(QMainWindow):
             db_handler_friends.update_profile_picture_in_db( self.user_id, image_path)
 
     def handle_create_group_click(self):
-        self.chat_display.append("Create Group button clicked!")
-        # Add specific logic for creating a group here
+        """Handles group creation"""
+        self.group.handle_create_group()
+
+    def handle_message_group(self):
+        """Show group messages"""
+        self.group.handle_message_group()
 
     def handle_notification_click(self):
         """Display notifications for the user."""
         self.chat_display.clear()
+
+        message_notifications = db_handler_friends.fetch_notifications(self.user_id, "message_notifications")
+        if message_notifications:
+            for _, message, created_at in message_notifications:
+                self.message.show_success_message(
+                    f"{message} at {created_at}. Click on the name of the sender to reply or view the message.")
+            db_handler_friends.mark_notifications_as_read(self.user_id, "message_notifications")
 
         notifications = db_handler_friends.fetch_notifications(self.user_id, "notifications")
         if notifications:
@@ -438,6 +452,7 @@ class MainWindow(QMainWindow):
             db_handler_friends.mark_notifications_as_read(self.user_id, "notifications")
         else:
             self.message.show_error_message("No new notifications.")
+
 
     def handle_add_friend_click(self):
         """Send a friend request to another user."""

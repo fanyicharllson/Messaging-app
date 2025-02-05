@@ -90,3 +90,22 @@ def login_user(name, phone):
                 return False
             finally:
                 conn.close()
+def fetch_user_name_by_id(user_id):
+    """Fetch the name of a user by their ID."""
+    connection = create_connection()
+    cursor = connection.cursor()
+
+    try:
+        query = "SELECT name FROM users WHERE id = ?;"
+        cursor.execute(query, (user_id,))
+        result = cursor.fetchone()
+        if result:
+            return result[0]  # The name is in the first column of the result
+        else:
+            return None  # No user found with the given ID
+    except Exception as e:
+        print(f"Error fetching user name: {e}")
+        return None
+    finally:
+        connection.close()
+
