@@ -14,6 +14,8 @@ from backend_controller import db_handler_friends
 from helpers.log_message import LogMessage
 from Status_view.Status_dialog import StatusDialog
 from Create_Group_View.create_group import GroupDialog
+from AIDialog.AIDialog import AIDialog
+from backend_controller.db_handle_AI import analyze_sentiment,save_chat_message
 
 
 class MainWindow(QMainWindow):
@@ -27,9 +29,10 @@ class MainWindow(QMainWindow):
         self.login_window = None
         self.message = LogMessage()
         self.group = GroupDialog(user_id, phone_number)
+        self.ai = AIDialog(name, phone_number, user_id)
         self.status = StatusDialog(user_id)
         self.setWindowTitle("ChatHub")
-        self.setFixedSize(900, 600)
+        self.setFixedSize(1200, 600)
         self.setStyleSheet("background-color: #2c3e50; color: white;")
         self.name = name
         self.phone_number = phone_number
@@ -274,6 +277,30 @@ class MainWindow(QMainWindow):
         )
         send_btn.clicked.connect(self.send_message)
         input_layout.addWidget(send_btn)
+
+        # --- Smart Suggestions Button ---
+        suggest_btn = QPushButton("Reply suggestions(AI)")
+        suggest_btn.setCursor(Qt.PointingHandCursor)
+        suggest_btn.setStyleSheet(
+            """
+            QPushButton {
+                background-color: #e67e22;
+                color: white;
+                font-size: 16px;
+                padding: 10px;
+                border: none;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #d35400;
+            }
+            QPushButton:pressed {
+                background-color: #c0392b;
+            }
+            """
+        )
+        suggest_btn.clicked.connect(self.show_suggestions_dialog)  # New method
+        input_layout.addWidget(suggest_btn)
 
         # --- New buttons for sending images and documents ---
         image_btn = QPushButton("Image")
@@ -691,3 +718,24 @@ class MainWindow(QMainWindow):
     def handle_view_status_click(self):
         """Handle view status button click."""
         self.status.show_friend_statuses_dialog()
+
+    def show_suggestions_dialog(self):
+        """Show AI suggestion dialog"""
+        self.ai.show_suggestions_dialog(self.message_input)
+
+    def send_message_with_emojis(self):
+        """Send a message with AI-generated emojis and save it to the database."""
+        user_message = self.message_input.text()
+        if not user_message.strip():
+            return
+
+        # Analyze sentiment and add emojis
+        emojis = analyze_sentiment(user_message)
+        full_message = f"{user_message} {emojis}"
+        self.chat_display.append(f"You: {full_message}")
+
+        # Save message to the database
+        save_chat_message(self.user_id, full_message, None)  # No suggestions here
+
+        self.message_input.clear()
+

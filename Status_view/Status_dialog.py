@@ -85,7 +85,7 @@ class StatusDialog(QDialog):
             """
             dialog = QDialog()
             dialog.setWindowTitle(f"{status['user']}'s Status")
-            dialog.setStyleSheet("background-color: #2c3e50; color: white;")
+            dialog.setStyleSheet("background-color: #2c3e50; color: white; ")
             dialog.setFixedSize(600, 400)
 
             layout = QVBoxLayout()

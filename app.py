@@ -27,10 +27,5 @@ if __name__ == "__main__":
     # Connect the splash window's continue signal to hide the splash and show the chat window.
     splash_window.continueClicked.connect(lambda: (splash_window.close(), auth_window.show()))
 
-   #  # Connect the login window's navigate_to_signup signal to show the signup window
-   #  login_window.navigate_to_signup.connect(splash_window.show())
-   #
-   # # Connect the signup window's navigate_to_login signal to show the login window
-   #  auth_window.navigate_to_login.connect(login_window.show())
 
     sys.exit(app.exec())
