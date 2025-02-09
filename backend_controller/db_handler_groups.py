@@ -112,7 +112,7 @@ def fetch_group_members(group_id):
 
     try:
         query = """
-            SELECT u.name
+            SELECT gm.member_id, u.name
             FROM group_members gm
             JOIN users u ON u.id = gm.member_id   
             WHERE gm.group_id = ?
@@ -120,7 +120,6 @@ def fetch_group_members(group_id):
         #NB Line 106========================================================================
         cursor.execute(query, (group_id,))
         members = cursor.fetchall()
-        connection.close()
         return members
 
     except sqlite3.Error as e:
@@ -161,7 +160,7 @@ def get_group_creator(group_id):
 
     try:
         query = """
-            SELECT g.group_name, u.name AS creator_name
+            SELECT g.created_by, u.name AS creator_name
             FROM groups g
             JOIN users u ON g.created_by = u.id
             WHERE g.id = ?;
@@ -169,15 +168,51 @@ def get_group_creator(group_id):
         cursor.execute(query, (group_id,))
         result = cursor.fetchone()  # Fetch a single row
         if result:
-            group_name, creator_name = result
-            print(f"group_name:  {group_name}, creator_name: {creator_name}")
-            return creator_name
+            creator_id, creator_name = result
+            print(f"Creator ID:  {creator_id}, creator_name: {creator_name}")
+            return creator_id, creator_name
         else:
-            print(f"No group found with ID: {group_id}")
-            return None
+            QMessageBox.critical(None, "Error", f"Group not found with ID: {group_id}.")
+            return None,None
     except Exception as e:
         print(f"Error fetching group creator: {e}")
         return None
     finally:
         connection.close()
+
+
+def add_group_member(group_id, member_id):
+    """Add a new member to a group."""
+    connection = db_handler.create_connection()
+    cursor = connection.cursor()
+
+    try:
+        query = "INSERT INTO group_members (group_id, member_id) VALUES (?, ?);"
+        cursor.execute(query, (group_id, member_id))
+        connection.commit()
+    finally:
+        connection.close()
+
+def load_friends(user_id):
+    """Load the friends of the logged-in user."""
+    connection = db_handler.create_connection()
+    cursor = connection.cursor()
+
+    query = """
+        SELECT u.id AS friend_id, u.name AS friend_name
+        FROM friends f
+        JOIN users u ON u.id = f.friend_id
+        WHERE f.user_id = ?
+    """
+    try:
+        cursor.execute(query, (user_id,))
+        friends = cursor.fetchall()  # Returns a list of (friend_id, friend_name) tuples
+        print(f"List of friends from db_handler_friends.py: {friends}")
+        return friends
+    except sqlite3.Error as e:
+        print(f"Database error while loading friends: {e}")
+        return []
+    finally:
+        connection.close()
+
 

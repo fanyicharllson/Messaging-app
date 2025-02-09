@@ -548,8 +548,8 @@ class MainWindow(QMainWindow):
                     QMessageBox.critical(self, "Error", f"Failed to send friend request: {str(e)}")
 
     def handle_remove_friend_click(self):
-        self.chat_display.append("Remove Friend button clicked!")
-        # Add specific logic for removing a friend here
+        """ Remove a friend from the friends list."""
+        QMessageBox.information(self, "Information", "This feature is currently unavailable.")
 
     def handle_settings_click(self):
         """Redirects to the settings page."""

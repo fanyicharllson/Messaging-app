@@ -67,17 +67,22 @@ class StatusDialog(QDialog):
 
         dialog = QDialog()
         dialog.setWindowTitle("View Statuses")
-        dialog.setMinimumSize(500, 400)
+        dialog.setMinimumSize(700, 500)
         dialog.setStyleSheet("background-color: #2c3e50; color: white;")
         layout = QVBoxLayout()
 
         for status in statuses:
             status_layout = QHBoxLayout()
 
-            # Status content button
-            button = QPushButton(f"{status['user']} ({status['timestamp']})\nExpires at: {status['expiration_time']}")
+            # Display expiration time only for the user's statuses
+            if status['user_id'] == self.user_id:
+                status_text = f"{status['user']} ({status['timestamp']})\nExpires at: {status['expiration_time']}"
+            else:
+                status_text = f"{status['user']} ({status['timestamp']})"
+
+            button = QPushButton(status_text)
             button.setStyleSheet(
-                "background-color: #1abc9c; color: white; font-size: 16px; padding: 10px; border: none; border-radius: 5px;")
+                "background-color: #1abc9c; color: white; padding: 10px; border: none; border-radius: 5px;")
             button.setCursor(Qt.PointingHandCursor)
             button.clicked.connect(lambda _, s=status: self.show_status_content_dialog(s))
             status_layout.addWidget(button)

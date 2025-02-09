@@ -1,6 +1,6 @@
 from PySide6.QtCore import QDateTime, Qt
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QFormLayout, QLineEdit, QMessageBox, QCheckBox, QPushButton, QLabel, \
-    QTextEdit, QWidget
+    QTextEdit, QWidget, QInputDialog, QHBoxLayout
 from backend_controller import db_handler_friends, db_handler, db_handler_groups
 
 
@@ -130,16 +130,21 @@ class GroupDialog:
         for group_id, group_name in groups:
             # Fetch group members for the current group
             members = db_handler_groups.fetch_group_members(group_id)
-            member_names = ", ".join([member[0] for member in members])  # Concatenate member names
+            member_names = ", ".join([member[1] for member in members])  # Concatenate member names
 
             # Create a widget for the group name and members
             group_widget = QWidget()
             group_layout = QVBoxLayout(group_widget)
 
             #get admin name
-            name = db_handler_groups.get_group_creator(group_id)
+            # name = db_handler_groups.get_group_creator(group_id)
 
-            group_label = QLabel(f"Group Name: {group_name} -------> Admin: {name}")
+
+            # Get admin name and check if the current user is the admin
+            creator_id, creator_name = db_handler_groups.get_group_creator(group_id)
+            is_admin = self.user_id == creator_id
+
+            group_label = QLabel(f"Group Name: {group_name} -------> Admin: {creator_name}")
             group_label.setStyleSheet("font-size: 16px;")
             group_layout.addWidget(group_label)
 
@@ -169,9 +174,115 @@ class GroupDialog:
             button.clicked.connect(lambda _, gid=group_id: self.open_group_chat(dialog, gid))
             group_layout.addWidget(button)
 
+            # Add a button to add members (only for admin)
+            add_member_button = QPushButton("Add Member")
+            add_member_button.setCursor(Qt.PointingHandCursor)
+            add_member_button.setStyleSheet(
+                """
+                QPushButton {
+                    background-color: #3498db;
+                    color: white;
+                    font-size: 16px;
+                    padding: 10px;
+                    border: none;
+                    border-radius: 5px;
+                }
+                QPushButton:hover {
+                    background-color: #2980b9;
+                }
+                """
+            )
+            if is_admin:
+                add_member_button.clicked.connect(lambda _, gid=group_id: self.show_add_members_dialog(gid))
+            else:
+                add_member_button.clicked.connect(
+                    lambda: QMessageBox.warning(None, "Permission Denied", "Only the group admin can add members.")
+                )
+            group_layout.addWidget(add_member_button)
+
             layout.addWidget(group_widget)
 
         dialog.exec_()
+
+    def show_add_members_dialog(self, group_id):
+        """Shows a dialog for the admin to add friends to the group."""
+
+        # Fetch current group members to exclude them from the selection
+        current_members = db_handler_groups.fetch_group_members(group_id)
+        current_member_ids = {member[0] for member in current_members}  # Extract member IDs
+
+        # Fetch user's friends
+        available_friends = db_handler_groups.load_friends(self.user_id)
+        filtered_friends = [(friend_id, friend_name) for friend_id, friend_name in available_friends if
+                            friend_id not in current_member_ids]
+
+        if not available_friends:
+            QMessageBox.information(None, "No Friends Available", "All your friends are already in the group!")
+            return
+
+        # Create the dialog
+        dialog = QDialog()
+        dialog.setWindowTitle("Add Members to Group")
+        dialog.setStyleSheet("background-color: #2c3e50; color: white;")
+        dialog.resize(600, 400)
+        layout = QVBoxLayout(dialog)
+
+        title = QLabel("Select friends to add to the group:")
+        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #ecf0f1;")
+        layout.addWidget(title)
+
+        checkboxes = []
+        for friend_id, friend_name in filtered_friends:
+            print(f"Friend ID: {friend_id}, Friend Name: {friend_name}, Type: {type(friend_name)}")
+            checkbox = QCheckBox(friend_name)  # Show friend's name
+            checkbox.setProperty("friend_id", friend_id)  # Store the friend's ID
+            checkbox.setStyleSheet("font-size: 14px; color: #bdc3c7;")
+            checkboxes.append(checkbox)
+            layout.addWidget(checkbox)
+
+        # Add confirm and cancel buttons
+        button_layout = QHBoxLayout()
+        confirm_button = QPushButton("Add Members")
+        confirm_button.setStyleSheet(
+            "background-color: #1abc9c; color: white; padding: 10px; border: none; border-radius: 5px;"
+        )
+        confirm_button.setCursor(Qt.PointingHandCursor)
+        confirm_button.clicked.connect(lambda: self.add_members_to_group(dialog, group_id, checkboxes))
+        button_layout.addWidget(confirm_button)
+
+        cancel_button = QPushButton("Cancel")
+        cancel_button.setStyleSheet(
+            "background-color: #e74c3c; color: white; padding: 10px; border: none; border-radius: 5px;"
+        )
+        cancel_button.setCursor(Qt.PointingHandCursor)
+        cancel_button.clicked.connect(dialog.reject)
+        button_layout.addWidget(cancel_button)
+
+        layout.addLayout(button_layout)
+        dialog.exec_()
+
+    @staticmethod
+    def add_members_to_group(dialog, group_id, checkboxes):
+        """Adds the selected friends to the group."""
+        selected_friend_ids = [
+            checkbox.property("friend_id") for checkbox in checkboxes if checkbox.isChecked()
+        ]
+
+        if not selected_friend_ids:
+            QMessageBox.warning(None, "No Selection", "Please select at least one friend to add.")
+            return
+
+        try:
+            # Add each selected friend to the group
+            for friend_id in selected_friend_ids:
+                db_handler_groups.add_group_member(group_id, friend_id)
+
+            QMessageBox.information(None, "Success", "Selected members were added successfully!")
+            dialog.accept()  # Close the dialog after successful addition
+
+        except Exception as e:
+            QMessageBox.critical(None, "Error", f"Failed to add members: {e}")
+            print(f"Failed to add members: {e}")
 
     def open_group_chat(self, parent_dialog, group_id):
         """Opens the group chat dialog."""

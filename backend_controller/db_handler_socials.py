@@ -35,7 +35,7 @@ def post_status(user_id, content, self=None):
         connection.commit()
 
         print("Status posted successfully!")
-        QMessageBox.information(self, "Success", "Status posted!")
+        QMessageBox.information(self, "Success", "Status posted! Click the eye icon to see the status.")
 
     except sqlite3.Error as e:
         print(f"Database error: {e}")
