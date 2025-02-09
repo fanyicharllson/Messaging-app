@@ -1,6 +1,7 @@
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton, QMessageBox, QLabel
-from backend_controller.db_handler_socials import post_status, get_friend_and_user_statuses, like_status, get_users_who_liked_status, get_users_who_viewed_status, track_status_view
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton, QMessageBox, QLabel, QHBoxLayout
+from backend_controller.db_handler_socials import post_status, get_friend_and_user_statuses, like_status, get_users_who_liked_status, get_users_who_viewed_status, track_status_view, delete_status
+import qtawesome as qta
 
 
 class StatusDialog(QDialog):
@@ -50,8 +51,9 @@ class StatusDialog(QDialog):
 
     def show_friend_statuses_dialog(self):
         """
-        Displays a dialog showing statuses from the user and their friends.
-        """
+           Displays a dialog showing statuses from the user and their friends.
+           Allows the user to delete their own statuses with a delete icon.
+           """
         statuses = get_friend_and_user_statuses(self.user_id)
 
         if not statuses:
@@ -65,13 +67,30 @@ class StatusDialog(QDialog):
         layout = QVBoxLayout()
 
         for status in statuses:
+            status_layout = QHBoxLayout()
+
+            # Status content button
             button = QPushButton(f"{status['user']} ({status['timestamp']})")
-            button.setStyleSheet("background-color: #1abc9c; color: white; font-size: 16px; padding: 10px; border: none; border-radius: 5px;")
+            button.setStyleSheet(
+                "background-color: #1abc9c; color: white; font-size: 16px; padding: 10px; border: none; border-radius: 5px;")
             button.setCursor(Qt.PointingHandCursor)
             button.clicked.connect(lambda _, s=status: self.show_status_content_dialog(s))
-            layout.addWidget(button)
+            status_layout.addWidget(button)
 
+            print(f"User ID: {self.user_id}, Status ID: {status['user_id']}")
 
+            # Delete button with icon (only for the user's statuses)
+            if status['user_id'] == self.user_id:  # Check if the status belongs to the current user
+                delete_button = QPushButton()
+                delete_button.setIcon(qta.icon('fa.trash', color='white'))  # Use a trash icon
+                delete_button.setStyleSheet(
+                    "background-color: #e74c3c; border: none; border-radius: 5px; padding: 10px;")
+                delete_button.setCursor(Qt.PointingHandCursor)
+                delete_button.clicked.connect(
+                    lambda _, s=status: self.confirm_delete_status(s, dialog))  # Pass the status and dialog
+                status_layout.addWidget(delete_button)
+
+            layout.addLayout(status_layout)
 
         dialog.setLayout(layout)
         dialog.exec()
@@ -124,3 +143,20 @@ class StatusDialog(QDialog):
 
             dialog.setLayout(layout)
             dialog.exec()
+
+    def confirm_delete_status(self, status, parent_dialog):
+        """
+        Shows a confirmation prompt to delete a status.
+        """
+        reply = QMessageBox.question(
+            None,
+            "Confirm Delete",
+            f"Are you sure you want to delete this status?\n\n{status['content']}",
+            QMessageBox.Yes | QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            delete_status(status['user_id'], status['status_id'])  # Pass both user_id and status_id
+            QMessageBox.information(None, "Status Deleted", "The status has been deleted.")
+            parent_dialog.close()  # Close the dialog and refresh
+            self.show_friend_statuses_dialog()  # Reopen the dialog with updated statuses

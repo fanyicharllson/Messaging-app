@@ -30,7 +30,7 @@ class SplashWindow(QWidget):
         layout.addWidget(self.logo, alignment=Qt.AlignHCenter)
 
         # Grand welcome message in the middle
-        welcome_text = QLabel("Welcome to ChatHub\nYour Secure and Private Messaging Platform\nChat Made Easy")
+        welcome_text = QLabel("Hey there! Welcome to ChatHub,\nYour Secure and Private Messaging Platform\nChat Made Easy")
         welcome_text.setStyleSheet("color: white; font-size: 30px; font-weight: bold;")
         welcome_text.setAlignment(Qt.AlignCenter)
         layout.addWidget(welcome_text)
@@ -51,6 +51,7 @@ class SplashWindow(QWidget):
                 """)
         # When the button is clicked, emit our custom signal.
         self.continue_btn.clicked.connect(self.continueClicked.emit)
+        self.continue_btn.setCursor(Qt.PointingHandCursor)
         layout.addWidget(self.continue_btn, alignment=Qt.AlignCenter)
 
         # Add stretch to push the footer to the bottom

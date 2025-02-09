@@ -32,7 +32,7 @@ class MainWindow(QMainWindow):
         self.ai = AIDialog(name, phone_number, user_id)
         self.status = StatusDialog(user_id)
         self.setWindowTitle("ChatHub")
-        self.setFixedSize(1200, 600)
+        self.setFixedSize(1110, 660)
         self.setStyleSheet("background-color: #2c3e50; color: white;")
         self.name = name
         self.phone_number = phone_number

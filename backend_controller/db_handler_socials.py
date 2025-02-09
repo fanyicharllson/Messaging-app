@@ -98,7 +98,7 @@ def get_friend_and_user_statuses(user_id):
         cursor = connection.cursor()
 
         query = """
-        SELECT s.content, s.timestamp, u.name, s.id
+        SELECT s.content, s.timestamp, u.name, s.id, s.user_id
         FROM statuses s
         JOIN users u ON s.user_id = u.id
         WHERE s.user_id = ? OR s.user_id IN (
@@ -109,7 +109,7 @@ def get_friend_and_user_statuses(user_id):
         cursor.execute(query, (user_id, user_id))
 
         statuses = cursor.fetchall()
-        return [{"content": row[0], "timestamp": row[1], "user": row[2], "status_id": row[3]} for row in statuses]
+        return [{"content": row[0], "timestamp": row[1], "user": row[2], "status_id": row[3], "user_id": row[4],} for row in statuses]
 
     except sqlite3.Error as e:
         print(f"Database error: {e}")
@@ -248,4 +248,24 @@ def get_users_who_viewed_status(status_id):
         if connection:
             connection.close()
 
+
+def delete_status(user_id, status_id):
+    """
+    Deletes a status from the database.
+    """
+    try:
+        connection = create_connection()
+        cursor = connection.cursor()
+
+        # Delete the status where user_id and status_id match
+        query = "DELETE FROM statuses WHERE user_id = ? AND id = ?"
+        cursor.execute(query, (user_id, status_id))
+        connection.commit()
+
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+
+    finally:
+        if connection:
+            connection.close()
 

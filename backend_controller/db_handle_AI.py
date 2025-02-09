@@ -45,7 +45,7 @@ def get_smart_suggestions(user_message):
         # Generate suggestions with Cohere
         response = cohere_client.generate(
             model='command-xlarge-nightly',  # Adjust model based on your plan
-            prompt=f"Suggest 2 alternatives for this message: '{user_message}'",
+            prompt=f"Suggest 3 alternatives for this message: '{user_message}'",
             max_tokens=30,
             temperature=0.7,
             k=0,
