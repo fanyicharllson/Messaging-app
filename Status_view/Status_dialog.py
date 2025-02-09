@@ -1,6 +1,6 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton, QMessageBox, QLabel, QHBoxLayout
-from backend_controller.db_handler_socials import post_status, get_friend_and_user_statuses, like_status, get_users_who_liked_status, get_users_who_viewed_status, track_status_view, delete_status
+from backend_controller.db_handler_socials import post_status, get_friend_and_user_statuses, like_status, get_users_who_liked_status, get_users_who_viewed_status, track_status_view, delete_status, delete_expired_statuses
 import qtawesome as qta
 
 
@@ -53,7 +53,12 @@ class StatusDialog(QDialog):
         """
            Displays a dialog showing statuses from the user and their friends.
            Allows the user to delete their own statuses with a delete icon.
-           """
+
+          """
+
+        # Delete expired statuses
+        delete_expired_statuses()
+
         statuses = get_friend_and_user_statuses(self.user_id)
 
         if not statuses:
@@ -70,7 +75,7 @@ class StatusDialog(QDialog):
             status_layout = QHBoxLayout()
 
             # Status content button
-            button = QPushButton(f"{status['user']} ({status['timestamp']})")
+            button = QPushButton(f"{status['user']} ({status['timestamp']})\nExpires at: {status['expiration_time']}")
             button.setStyleSheet(
                 "background-color: #1abc9c; color: white; font-size: 16px; padding: 10px; border: none; border-radius: 5px;")
             button.setCursor(Qt.PointingHandCursor)

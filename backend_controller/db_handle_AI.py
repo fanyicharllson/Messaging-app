@@ -59,7 +59,7 @@ def get_smart_suggestions(user_message):
         return [suggestion.strip() for suggestion in suggestions if suggestion.strip()]
     except Exception as e:
         print(f"Error generating suggestions: {e}")
-        return ["Sorry, I couldn't generate suggestions."]
+        return ["Sorry, I couldn't generate suggestions. Please try again later."]
 
 def analyze_sentiment(message):
     """Analyze sentiment using Cohere's classify endpoint."""

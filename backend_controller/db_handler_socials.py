@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from PySide6.QtWidgets import QMessageBox
 from backend_controller.db_handler import create_connection
@@ -16,6 +16,7 @@ def post_status(user_id, content, self=None):
     Returns:
         None
     """
+    expiration_time = datetime.now() + timedelta(hours=24)
     try:
         if not content.strip():
             print("Cannot post an empty status.")
@@ -27,8 +28,8 @@ def post_status(user_id, content, self=None):
         cursor = connection.cursor()
 
         # Insert status into the database
-        query = "INSERT INTO statuses (user_id, content, timestamp) VALUES (?, ?, ?)"
-        cursor.execute(query, (user_id, content, datetime.now()))
+        query = "INSERT INTO statuses (user_id, content, timestamp, expiration_time) VALUES (?, ?, ?, ?)"
+        cursor.execute(query, (user_id, content, datetime.now(), expiration_time))
 
         # Commit changes
         connection.commit()
@@ -85,31 +86,32 @@ def get_statuses(user_id=None, self=None):
 
 def get_friend_and_user_statuses(user_id):
     """
-    Fetches statuses posted by the logged-in user and their friends.
+       Fetches statuses posted by the logged-in user and their friends, excluding expired ones.
 
-    Args:
-        user_id (int): The ID of the logged-in user.
+       Args:
+           user_id (int): The ID of the logged-in user.
 
-    Returns:
-        list: A list of dictionaries containing the name, content, and timestamp of statuses.
-    """
+       Returns:
+           list: A list of dictionaries containing the name, content, and timestamp of statuses.
+       """
     try:
         connection = create_connection()
         cursor = connection.cursor()
 
         query = """
-        SELECT s.content, s.timestamp, u.name, s.id, s.user_id
+         SELECT s.content, s.timestamp, u.name, s.id, s.user_id, s.expiration_time
         FROM statuses s
         JOIN users u ON s.user_id = u.id
-        WHERE s.user_id = ? OR s.user_id IN (
+        WHERE (s.user_id = ? OR s.user_id IN (
             SELECT friend_id FROM friends WHERE user_id = ?
-        )
+        ))
+        AND (s.expiration_time > CURRENT_TIMESTAMP) -- Only fetch non-expired statuses
         ORDER BY s.timestamp DESC
         """
         cursor.execute(query, (user_id, user_id))
 
         statuses = cursor.fetchall()
-        return [{"content": row[0], "timestamp": row[1], "user": row[2], "status_id": row[3], "user_id": row[4],} for row in statuses]
+        return [{"content": row[0], "timestamp": row[1], "user": row[2], "status_id": row[3], "user_id": row[4], "expiration_time": row[5]} for row in statuses]
 
     except sqlite3.Error as e:
         print(f"Database error: {e}")
@@ -268,4 +270,25 @@ def delete_status(user_id, status_id):
     finally:
         if connection:
             connection.close()
+
+
+def delete_expired_statuses():
+    """
+    Deletes statuses that have passed their expiration time.
+    """
+    try:
+        connection = create_connection()
+        cursor = connection.cursor()
+
+        query = "DELETE FROM statuses WHERE expiration_time <= CURRENT_TIMESTAMP"
+        cursor.execute(query)
+        connection.commit()
+
+        print("Expired statuses cleaned up.")
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+    finally:
+        if connection:
+            connection.close()
+
 
