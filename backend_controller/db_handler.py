@@ -110,7 +110,7 @@ def fetch_user_name_by_id(user_id):
         connection.close()
 
 
-def insert_feedback(user_name, feedback_text):
+def insert_feedback(user_name, feedback_text, tabletype):
     """
     Inserts feedback into the feedback table in the database.
 
@@ -122,11 +122,10 @@ def insert_feedback(user_name, feedback_text):
         connection = create_connection()
         cursor = connection.cursor()
 
-        query = "INSERT INTO feedback (user_name, feedback_text) VALUES (?, ?)"
+        query = f"INSERT INTO {tabletype} (user_name, feedback_text) VALUES (?, ?)"
         cursor.execute(query, (user_name, feedback_text))
         connection.commit()
 
-        print("Feedback successfully saved to the database.")
     except sqlite3.Error as e:
         print(f"Database error: {e}")
     finally:

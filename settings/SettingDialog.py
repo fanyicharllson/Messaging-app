@@ -84,6 +84,13 @@ class SettingDialog:
         feedback_button.clicked.connect(self.open_feedback_form)
         layout.addWidget(feedback_button)
 
+        # Contact btn
+        contact_button = QPushButton("Contact Developer")
+        contact_button.setCursor(Qt.PointingHandCursor)
+        contact_button.setStyleSheet("background-color: #1abc9c; color: white; padding: 10px; border-radius: 5px;")
+        contact_button.clicked.connect(self.open_contact_dialog)
+        layout.addWidget(contact_button)
+
         dialog.setLayout(layout)
         dialog.exec()
 
@@ -122,14 +129,14 @@ class SettingDialog:
         submit_button.setCursor(Qt.PointingHandCursor)
         submit_button.setStyleSheet("background-color: #1abc9c; color: white; padding: 10px; border-radius: 5px;")
         submit_button.clicked.connect(
-            lambda: self.submit_feedback(name_edit.text(), feedback_edit.toPlainText(), dialog))
+            lambda: self.submit_feedback(name_edit.text(), feedback_edit.toPlainText(), dialog, "feedback"))
         layout.addWidget(submit_button)
 
         dialog.setLayout(layout)
         dialog.exec()
 
     @staticmethod
-    def submit_feedback(name, feedback, dialog):
+    def submit_feedback(name, feedback, dialog, tabletype):
         """
         Handles feedback submission.
         """
@@ -137,10 +144,58 @@ class SettingDialog:
             QMessageBox.warning(None, "Incomplete", "Please provide feedback before submitting.")
             return
 
+        if not name.strip():
+            QMessageBox.warning(None, "Incomplete", "Please provide your name before submitting.")
+            return
+
         # Insert feedback into the database
-        insert_feedback(name, feedback)
+        insert_feedback(name, feedback, tabletype)
 
 
-        QMessageBox.information(None, f"Thank You {name}!", "Your feedback has been received.")
+        QMessageBox.information(None, f"Thank You {name}!", f"Your {tabletype} has been received.")
         dialog.close()
+
+
+
+    def open_contact_dialog(self):
+        """
+        Opens the feedback form dialog where users can submit their feedback.
+        """
+        dialog = QDialog()
+        dialog.setWindowTitle("Contact Developer")
+        dialog.setMinimumSize(400, 300)
+        dialog.setStyleSheet("background-color: #2c3e50; color: white;")
+
+        layout = QVBoxLayout(dialog)
+
+        # Name field
+        name_label = QLabel("Your Name:")
+        name_label.setStyleSheet("font-size: 14px;")
+        layout.addWidget(name_label)
+
+        name_edit = QLineEdit()
+        name_edit.setText(self.name)  # Pre-fill with the user's default name
+        name_edit.setStyleSheet("padding: 5px; font-size: 14px; border-radius: 5px;")
+        layout.addWidget(name_edit)
+
+        # Feedback field
+        feedback_label = QLabel("Your Message:")
+        feedback_label.setStyleSheet("font-size: 14px; margin-top: 10px;")
+        layout.addWidget(feedback_label)
+
+        feedback_edit = QTextEdit()
+        feedback_edit.setStyleSheet("padding: 5px; font-size: 14px; border-radius: 5px;")
+        layout.addWidget(feedback_edit)
+
+        # Submit button
+        submit_button = QPushButton("Submit")
+        submit_button.setCursor(Qt.PointingHandCursor)
+        submit_button.setStyleSheet("background-color: #1abc9c; color: white; padding: 10px; border-radius: 5px;")
+        submit_button.clicked.connect(
+            lambda: self.submit_feedback(name_edit.text(), feedback_edit.toPlainText(), dialog, "contact"))
+        layout.addWidget(submit_button)
+
+        dialog.setLayout(layout)
+        dialog.exec()
+
 
