@@ -279,7 +279,7 @@ class MainWindow(QMainWindow):
         input_layout.addWidget(send_btn)
 
         # --- Smart Suggestions Button ---
-        suggest_btn = QPushButton("Reply suggestions(AI)")
+        suggest_btn = QPushButton("Reply suggestions-AI")
         suggest_btn.setCursor(Qt.PointingHandCursor)
         suggest_btn.setStyleSheet(
             """
