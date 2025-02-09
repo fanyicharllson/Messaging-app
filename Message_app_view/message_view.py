@@ -47,9 +47,10 @@ class MainWindow(QMainWindow):
         db_handler_friends.check_friend_requests(self.user_id)
 
         notifications = db_handler_friends.fetch_notifications(self.user_id, "notifications")
+        message_notifications = db_handler_friends.fetch_notifications(self.user_id, "message_notifications")
         if notifications:
             self.message.show_success_message(
-                f"Hey {self.name}! You have {len(notifications)} new notifications. Click the bell icon to view them.")
+                f"Hey {self.name}! You have {len(notifications) + len(message_notifications)} new notifications. Click the bell icon to view them.")
 
 
         # Apply tooltip style globally
@@ -83,8 +84,7 @@ class MainWindow(QMainWindow):
         message_notifications = db_handler_friends.fetch_notifications(self.user_id, "message_notifications")
         if message_notifications:
             for _, message, created_at in message_notifications:
-                self.message.show_success_message(f"{message} at {created_at}. Click on the name of the sender to reply or view the message.")
-            db_handler_friends.mark_notifications_as_read(self.user_id, "message_notifications")
+                self.message.show_success_message(f"{message} at {created_at}.")
 
     def create_sidebar(self):
         """Creates the left sidebar with icons and friend list split horizontally."""
@@ -470,8 +470,7 @@ class MainWindow(QMainWindow):
         message_notifications = db_handler_friends.fetch_notifications(self.user_id, "message_notifications")
         if message_notifications:
             for _, message, created_at in message_notifications:
-                self.message.show_success_message(
-                    f"{message} at {created_at}. Click on the name of the sender to reply or view the message.")
+                self.chat_display.append(f"[{created_at}]: {message}")
             db_handler_friends.mark_notifications_as_read(self.user_id, "message_notifications")
 
         notifications = db_handler_friends.fetch_notifications(self.user_id, "notifications")
@@ -593,7 +592,7 @@ class MainWindow(QMainWindow):
         selected_friend = getattr(self, "selected_friend", None)
         message_content = self.message_input.text().strip()
 
-        print(f"selected friend from send_message {selected_friend}")
+        # print(f"selected friend from send_message {selected_friend}")
 
         if not selected_friend:
             QMessageBox.warning(self, "Warning", "Please select a friend to chat with.")
@@ -609,9 +608,11 @@ class MainWindow(QMainWindow):
         # Clear the message input field
         self.message_input.clear()
 
-
         # Refresh the chat display for both sender and receiver
         self.load_chat_history(selected_friend["id"])
+
+        QMessageBox.information(self, "Success", f"Message sent to {selected_friend['name']}!")
+
 
 
     def load_chat_history(self, friend_id):

@@ -189,6 +189,25 @@ def add_group_member(group_id, member_id):
     try:
         query = "INSERT INTO group_members (group_id, member_id) VALUES (?, ?);"
         cursor.execute(query, (group_id, member_id))
+
+        sender_name = db_handler.fetch_user_name_by_id(member_id)
+
+        # Fetch group name and creator name
+        cursor.execute("SELECT g.group_name, u.name AS creator_name FROM groups g JOIN users u ON g.created_by = u.id WHERE g.id = ?", (group_id,))
+        result = cursor.fetchone()
+        if result:
+            group_name, creator_name = result
+            print(f"Group ID from db_handler_groups: {group_id}, Group Name: {group_name}, Creator Name: {creator_name}")
+        else:
+            QMessageBox.critical(None, "Error", f"Group not found with ID: {group_id}.")
+            return
+
+        notification_message = f"{creator_name} added you in {group_name} group!"
+        cursor.execute(""" INSERT INTO message_notifications (user_id, message)
+                        VALUES (?, ?)
+                        """,
+                       (member_id, notification_message),
+                       )
         connection.commit()
     finally:
         connection.close()

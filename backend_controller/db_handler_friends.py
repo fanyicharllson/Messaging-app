@@ -223,7 +223,6 @@ def save_message(user_id, selected_friend, message_content, self=None):
             """,
             (user_id, selected_friend, message_content),
         )
-        QMessageBox.information(self, "Success", "Message sent successfully!")
         # storing notification for the receiver
         # Fetch sender name by id and add to notifications
         cursor.execute("SELECT name FROM users WHERE id = ?", (user_id,))
