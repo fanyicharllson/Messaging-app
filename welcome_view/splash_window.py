@@ -2,6 +2,7 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPixmap
+from settings.SettingDialog import SettingDialog
 
 class SplashWindow(QWidget):
 
@@ -13,6 +14,7 @@ class SplashWindow(QWidget):
         self.setWindowTitle("Splash - ChatHub")
         self.setStyleSheet("background-color: #2c3e50;")
         self.setFixedSize(900, 600)
+        self.setting = SettingDialog(None, None, None)
 
         # Main vertical layout
         layout = QVBoxLayout(self)
@@ -49,10 +51,30 @@ class SplashWindow(QWidget):
                         color: #2980b9;
                     }
                 """)
+        # About button
+
+        self.about_btn = QPushButton("About ChatHub")
+        self.about_btn.setStyleSheet("""
+                    QPushButton {
+                        color: #3498db;
+                        background-color: transparent;
+                        border: none;
+                        font-size: 20px;
+                        text-decoration: underline;
+                    }
+                    QPushButton:hover {
+                        color: #2980b9;
+                    }
+                """)
+
         # When the button is clicked, emit our custom signal.
         self.continue_btn.clicked.connect(self.continueClicked.emit)
         self.continue_btn.setCursor(Qt.PointingHandCursor)
         layout.addWidget(self.continue_btn, alignment=Qt.AlignCenter)
+
+        self.about_btn.setCursor(Qt.PointingHandCursor)
+        self.about_btn.clicked.connect(self.open_about_dialog)
+        layout.addWidget(self.about_btn, alignment=Qt.AlignCenter)
 
         # Add stretch to push the footer to the bottom
         layout.addStretch()
@@ -62,6 +84,10 @@ class SplashWindow(QWidget):
         self.dev_name.setStyleSheet("color: white; font-size: 15px;")
         self.dev_name.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.dev_name)
+
+    def open_about_dialog(self):
+        """Open the About ChatHub dialog."""
+        self.setting.open_about_dialog()
 
 if __name__ == "__main__":
     # For quick testing

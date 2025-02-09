@@ -16,6 +16,7 @@ from Status_view.Status_dialog import StatusDialog
 from Create_Group_View.create_group import GroupDialog
 from AIDialog.AIDialog import AIDialog
 from backend_controller.db_handle_AI import analyze_sentiment,save_chat_message
+from settings.SettingDialog import SettingDialog
 
 
 class MainWindow(QMainWindow):
@@ -30,6 +31,7 @@ class MainWindow(QMainWindow):
         self.message = LogMessage()
         self.group = GroupDialog(user_id, phone_number)
         self.ai = AIDialog(name, phone_number, user_id)
+        self.setting = SettingDialog(user_id, name, phone_number)
         self.status = StatusDialog(user_id)
         self.setWindowTitle("ChatHub")
         self.setFixedSize(1110, 660)
@@ -550,8 +552,8 @@ class MainWindow(QMainWindow):
         # Add specific logic for removing a friend here
 
     def handle_settings_click(self):
-        self.chat_display.append("Settings button clicked!")
-        # Add specific logic for settings here
+        """Redirects to the settings page."""
+        self.setting.open_settings_dialog()
 
     def handle_logout_click(self):
         """Handle logout button click."""
