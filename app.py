@@ -22,7 +22,7 @@ if __name__ == "__main__":
     loading_window.show()
 
     # After a set amount of time (e.g., 3000 milliseconds), hide the loading window and show the splash window.
-    QTimer.singleShot(3000, lambda: (loading_window.close(), splash_window.show()))
+    QTimer.singleShot(4000, lambda: (loading_window.close(), splash_window.show()))
 
     # Connect the splash window's continue signal to hide the splash and show the chat window.
     splash_window.continueClicked.connect(lambda: (splash_window.close(), auth_window.show()))

@@ -1,6 +1,10 @@
 import base64
 import json
+import os
 import sqlite3
+import subprocess
+import sys
+
 import backend_controller.db_handler as db_handler
 from PySide6.QtWidgets import QMessageBox
 
@@ -129,7 +133,6 @@ def check_friend_requests(user_id, self=None):
         if reply == QMessageBox.Yes:
             respond_to_friend_requests(user_id)
             print(f"Responding to friend requests for user from db_handler_friends.py {user_id}")
-
 
 def respond_to_friend_requests(user_id, self=None):
     """Respond to pending friend requests."""
@@ -292,31 +295,12 @@ def check_for_new_messages(user_id, selected_friend):
     finally:
         connection.close()
 
-def save_file_message(sender_id, receiver_id, file_data, file_type, file_name):
+def save_file_message(sender_id, receiver_id, file_path, file_type):
     """
     Saves a file (image or document) as a message in the database.
 
-    The file's binary data is encoded into a base64 string and then stored in the
-    'content' column as a JSON object containing the file name and encoded data.
-
-    Parameters:
-        sender_id (int): The ID of the user sending the file.
-        receiver_id (int): The ID of the friend receiving the file.
-        file_data (bytes): The binary data of the file.
-        file_type (str): The type of the file, e.g., 'image' or 'doc'.
-        file_name (str): The original name of the file.
+    The file's path is stored in the 'content' column as plain text.
     """
-    # Encode the binary file data to a base64 string
-    encoded_data = base64.b64encode(file_data).decode('utf-8')
-
-    # Prepare the JSON content with file metadata
-    content_dict = {
-        "file_name": file_name,
-        "data": encoded_data
-    }
-    content_json = json.dumps(content_dict)
-
-    # Insert the message into the messages table
     try:
         conn = connect_to_database()
         cursor = conn.cursor()
@@ -324,13 +308,14 @@ def save_file_message(sender_id, receiver_id, file_data, file_type, file_name):
             INSERT INTO messages (sender_id, receiver_id, content, message_type)
             VALUES (?, ?, ?, ?)
         """
-        cursor.execute(query, (sender_id, receiver_id, content_json, file_type))
+        cursor.execute(query, (sender_id, receiver_id, file_path, file_type))
         conn.commit()
     except sqlite3.Error as e:
         print("SQLite error:", e)
     finally:
         if conn:
             conn.close()
+
 
 
 def get_profile_picture_path_from_db(user_id):
@@ -496,3 +481,15 @@ def update_profile_in_db(user_id, name, number, self=None):
         # Ensure the connection is closed
         if connection:
             connection.close()
+
+# def open_file(file_path):
+#     """Opens the specified file with the default application."""
+#     try:
+#         if sys.platform == "win32":
+#             os.startfile(file_path)
+#         elif sys.platform == "darwin":
+#             subprocess.call(["open", file_path])
+#         else:
+#             subprocess.call(["xdg-open", file_path])
+#     except Exception as e:
+#         QMessageBox.critical(None, "Error", f"Failed to open file: {str(e)}")

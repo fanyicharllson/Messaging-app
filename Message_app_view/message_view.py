@@ -1,14 +1,17 @@
 import base64
 import json
+import os
+import subprocess
+import sys
 
 import qtawesome as qta
-from PySide6.QtGui import QPixmap, QFont
+from PySide6.QtGui import QPixmap, QFont, QTextCursor
 from PySide6.QtWidgets import (
     QMainWindow, QLabel, QVBoxLayout, QHBoxLayout, QWidget, QFrame, QLineEdit,
     QPushButton, QListWidget, QListWidgetItem, QTextEdit, QToolButton, QApplication, QInputDialog, QMessageBox,
-    QFileDialog, QDialog
+    QFileDialog, QDialog, QTextBrowser
 )
-from PySide6.QtCore import Qt, QSize, QTimer
+from PySide6.QtCore import Qt, QSize, QTimer, QEvent
 from auth_view import login_window #avoiding circular imports
 from backend_controller import db_handler_friends
 from helpers.log_message import LogMessage
@@ -83,8 +86,7 @@ class MainWindow(QMainWindow):
 
         message_notifications = db_handler_friends.fetch_notifications(self.user_id, "message_notifications")
         if message_notifications:
-            for _, message, created_at in message_notifications:
-                self.message.show_success_message(f"{message} at {created_at}.")
+                self.message.show_success_message(f"You have {len(message_notifications)} new messages. Click the bell icon to view them.")
 
     def create_sidebar(self):
         """Creates the left sidebar with icons and friend list split horizontally."""
@@ -385,8 +387,6 @@ class MainWindow(QMainWindow):
             if last_message != f"{sender} ({timestamp}): {content}":
                 self.chat_display.append(f"{sender} ({timestamp}): {content}")
 
-
-
     def handle_status_click(self):
         """Opens a dialog to post a status."""
         self.status.show_post_status_dialog()
@@ -478,9 +478,9 @@ class MainWindow(QMainWindow):
             for notification_id, message, created_at in notifications:
                 self.chat_display.append(f"[{created_at}]: {message}")
             db_handler_friends.mark_notifications_as_read(self.user_id, "notifications")
-        else:
-            self.message.show_error_message("No new notifications.")
 
+        if not message_notifications and not notifications:
+            QMessageBox.information(self, "No Notifications", "You have no notifications.")
 
     def handle_add_friend_click(self):
         """Send a friend request to another user."""
@@ -613,44 +613,62 @@ class MainWindow(QMainWindow):
 
         QMessageBox.information(self, "Success", f"Message sent to {selected_friend['name']}!")
 
-
-
     def load_chat_history(self, friend_id):
         """Loads the chat history between the current user and the selected friend."""
-
         chat_history = db_handler_friends.load_chat_history_db(self.user_id, friend_id)
 
         # Clear the chat display and load the conversation
         self.chat_display.clear()
+
         for sender_id, content, timestamp, message_type in chat_history:
-            # If the message is a file (image or doc), process the content as JSON.
-            if message_type == "image":
-                try:
-                    file_info = json.loads(content)
-                    image_data = base64.b64decode(file_info["data"])
-                    pixmap = QPixmap()
-                    pixmap.loadFromData(image_data)
-                    image_label = QLabel()
-                    image_label.setPixmap(pixmap.scaled(200, 200, Qt.KeepAspectRatio))
-                    self.chat_display.append(f"{sender_id} ({timestamp}):")
-                    self.chat_display.layout().addWidget(image_label)
-                except Exception as e:
-                    self.chat_display.append(f"[IMAGE]: (Error loading image)")
-                    print(f"Error displaying image: {str(e)}")
-
-            elif message_type == "doc":
-                try:
-                    file_info = json.loads(content)
-                    file_name = file_info["file_name"]
-                    self.chat_display.append(f"[DOCUMENT]: {file_name} (Click to download)")
-                    # Optionally add a button for saving the document
-                except Exception as e:
-                    self.chat_display.append(f"[DOCUMENT]: (Error loading document)")
-                    print(f"Error displaying document: {str(e)}")
-            else:
              sender = "You" if sender_id == self.user_id else "Friend"
-             self.chat_display.append(f"{sender} ({timestamp}): {content}")
 
+             if message_type in ["image", "doc"]:
+                 try:
+                     # File message: add the file link with the anchor tag
+                     file_path = content
+                     file_name = os.path.basename(file_path)
+                     file_link = f'<a href="{file_path}" style="color: #1abc9c; text-decoration: underline;">{file_name}</a>'
+                     self.chat_display.append(f"{sender} ({timestamp}): [FILE] [Click to open]==> {file_link}")
+                     print(f"Debug: {sender} ({timestamp}): {file_link}")
+                 except Exception as e:
+                     self.chat_display.append(f"[{message_type.upper()}]: (Error loading file)")
+                     print(f"Error displaying file: {str(e)}")
+             else:
+                 # Regular text messages
+                 self.chat_display.append(f"{sender} ({timestamp}): {content}")
+
+        self.chat_display.viewport().installEventFilter(self)
+
+    def eventFilter(self, source, event):
+        if source is self.chat_display.viewport() and event.type() == QEvent.MouseButtonRelease:
+            cursor = self.chat_display.cursorForPosition(event.pos())
+            char_format = cursor.charFormat()
+
+            # Check if the clicked text is a hyperlink
+            if char_format.isAnchor():
+                clicked_text = char_format.anchorHref()  # Extract the full href value
+                if os.path.isfile(clicked_text):  # Check if it's a valid file path
+                    print(f"Opening file: {clicked_text}")
+                    self.open_file(clicked_text)
+                    return True
+                else:
+                    print(f"Clicked text is not a valid file path: {clicked_text}")
+            else:
+                print("No anchor clicked.")
+        return super().eventFilter(source, event)
+
+    def open_file(self, file_path):
+        """Opens the specified file with the default application."""
+        try:
+            if sys.platform == "win32":
+                os.startfile(file_path)
+            elif sys.platform == "darwin":
+                subprocess.call(["open", file_path])
+            else:
+                subprocess.call(["xdg-open", file_path])
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to open file: {str(e)}")
 
     def open_login_window(self):
         # Create and show the login window if not already created
@@ -662,61 +680,51 @@ class MainWindow(QMainWindow):
 
     def send_image(self):
         """Handles sending image files."""
+        selected_friend = getattr(self, "selected_friend", None)
+        if not selected_friend:
+            QMessageBox.warning(self, "Warning", "Please select a friend to send an image.")
+            return
+
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Select Image", "", "Images (*.png *.jpg *.jpeg *.bmp *.gif)"
         )
         if file_path:
             try:
-                with open(file_path, "rb") as file:
-                    file_data = file.read()
+                # Save the image path in the database
+                db_handler_friends.save_file_message(
+                    sender_id=self.user_id,
+                    receiver_id=selected_friend["id"],
+                    file_path=file_path,
+                    file_type="image",
+                )
+                # Reload chat history to display the clickable text
+                self.load_chat_history(selected_friend["id"])
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to read the image: {str(e)}")
-                return
-
-            selected_friend = getattr(self, "selected_friend", None)
-            if not selected_friend:
-                QMessageBox.warning(self, "Warning", "Please select a friend to chat with.")
-                return
-
-            # Save the image file as a message to the database.
-            # You need to implement save_file_message() in your db_handler_friends module.
-            db_handler_friends.save_file_message(
-                sender_id=self.user_id,
-                receiver_id=selected_friend["id"],
-                file_data=file_data,
-                file_type="image",
-                file_name=file_path.split("/")[-1]
-            )
-            self.load_chat_history(selected_friend["id"])
+                QMessageBox.critical(self, "Error", f"Failed to send the image: {str(e)}")
 
     def send_doc(self):
         """Handles sending document files."""
+        selected_friend = getattr(self, "selected_friend", None)
+        if not selected_friend:
+            QMessageBox.warning(self, "Warning", "Please select a friend to send a document.")
+            return
+
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "Select Document", "", "Documents (*.pdf *.doc *.docx *.txt)"
+            self, "Select Document", "", "Documents (*.pdf *.doc *.docx *.txt *.xls *.xlsx)"
         )
         if file_path:
             try:
-                with open(file_path, "rb") as file:
-                    file_data = file.read()
+                # Save the document path in the database
+                db_handler_friends.save_file_message(
+                    sender_id=self.user_id,
+                    receiver_id=selected_friend["id"],
+                    file_path=file_path,
+                    file_type="document",
+                )
+                # Reload chat history to display the clickable text
+                self.load_chat_history(selected_friend["id"])
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to read the document: {str(e)}")
-                return
-
-            selected_friend = getattr(self, "selected_friend", None)
-            if not selected_friend:
-                QMessageBox.warning(self, "Warning", "Please select a friend to chat with.")
-                return
-
-            # Save the document file as a message to the database.
-            db_handler_friends.save_file_message(
-                sender_id=self.user_id,
-                receiver_id=selected_friend["id"],
-                file_data=file_data,
-                file_type="document",
-                file_name=file_path.split("/")[-1]
-            )
-            self.load_chat_history(selected_friend["id"])
-
+                QMessageBox.critical(self, "Error", f"Failed to send the document: {str(e)}")
 
     def handle_view_status_click(self):
         """Handle view status button click."""
